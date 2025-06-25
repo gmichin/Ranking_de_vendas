@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import os
 import shutil
-from datetime import datetime
+from datetime import datetime, timedelta
 import psutil
 
 # Dicionário para traduzir os meses para português
@@ -28,7 +28,7 @@ def clean_matplotlib_memory():
 file_path = r"C:\Users\gmass\Downloads\Margem_250531 - wapp - V3.xlsx"
 sheet_name = "Base (3,5%)"
 output_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
-items_per_page = 3
+items_per_page = 5
 
 try:
     # Ler os dados primeiro para obter as datas
@@ -49,7 +49,6 @@ try:
     output_path = os.path.join(output_dir, output_filename)
     temp_path = os.path.join(output_dir, f"temp_{output_filename}")
 
-
     # Verificar espaço em disco
     if not check_disk_space(output_path):
         raise RuntimeError("Espaço insuficiente em disco para gerar o relatório")
@@ -68,8 +67,10 @@ try:
     sorted_df = grouped.sort_values('QTDE REAL', ascending=False).reset_index(drop=True)
     sorted_df.insert(0, 'Posição', range(1, len(sorted_df)+1))
     
-    # Processar dados para série temporal
-    time_series = df.groupby(['CODPRODUTO', 'DESCRICAO', 'DATA'])['QTDE REAL'].sum().reset_index()
+    # Processar dados para série temporal - Agrupando por semana corretamente
+    time_series = df.copy()
+    time_series['SEMANA'] = time_series['DATA'].dt.to_period('W').dt.start_time
+    time_series = time_series.groupby(['CODPRODUTO', 'DESCRICAO', 'SEMANA'])['QTDE REAL'].sum().reset_index()
     
     # Criar PDF temporário primeiro
     with PdfPages(temp_path) as pdf:
@@ -90,13 +91,13 @@ try:
             
             # Tabela
             ax1.axis('off')
-            table_data = chunk[['Posição', 'DESCRICAO', 'QTDE REAL']].values
+            table_data = chunk[['Posição', 'CODPRODUTO', 'DESCRICAO', 'QTDE REAL']].values
             table = ax1.table(
                 cellText=table_data,
-                colLabels=['Posição', 'Descrição', 'Tonelagem (kg)'],
+                colLabels=['Posição', 'Código', 'Descrição', 'Tonelagem (kg)'],
                 loc='center',
                 cellLoc='center',
-                colWidths=[0.1, 0.6, 0.3]
+                colWidths=[0.1, 0.1, 0.5, 0.3]
             )
             table.auto_set_font_size(False)
             table.set_fontsize(8)
@@ -123,33 +124,45 @@ try:
                       title_fontsize=8,
                       frameon=False)
             
-            # Gráfico de Linha 
+            # Gráfico de Linha (agora com um ponto por semana)
             ts_filtered = time_series[time_series['CODPRODUTO'].isin(produtos_na_pagina)]
             colors = [w.get_facecolor() for w in wedges]
             
-            ax3.set_title('Evolução Temporal', fontsize=10, pad=10)
+            ax3.set_title('Evolução Temporal (por semana)', fontsize=10, pad=10)
             ax3.set_ylabel('Tonelagem (kg)', fontsize=8)
             
-            lines = []  # Para armazenar as linhas para a legenda
-            labels = []  # Para armazenar os labels
+            lines = []
+            labels = []
             for idx, (produto, group) in enumerate(ts_filtered.groupby('CODPRODUTO')):
-                group = group.sort_values('DATA')
-                line, = ax3.plot(group['DATA'], group['QTDE REAL'], 
+                group = group.sort_values('SEMANA')
+                line, = ax3.plot(group['SEMANA'], group['QTDE REAL'], 
                                marker='o', linestyle='-', 
                                color=colors[idx], 
                                markersize=4, linewidth=1.5)
                 lines.append(line)
                 labels.append(group['DESCRICAO'].iloc[0])
                 
-                # Adicionar os valores acima de cada ponto
-                for x, y in zip(group['DATA'], group['QTDE REAL']):
+                for x, y in zip(group['SEMANA'], group['QTDE REAL']):
                     ax3.annotate(f'{y:.1f}', 
                                 xy=(x, y),
-                                xytext=(0, 5),  # 5 pontos de deslocamento vertical
+                                xytext=(0, 5),
                                 textcoords='offset points',
                                 ha='center', va='bottom',
                                 fontsize=6,
                                 color=colors[idx])
+            
+            # Formatando o eixo x para mostrar o período semanal
+            ax3.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%d/%m'))
+            ax3.xaxis.set_major_locator(plt.matplotlib.dates.WeekdayLocator(byweekday=plt.matplotlib.dates.MO))
+            
+            # Criando labels que mostram o período da semana
+            tick_labels = []
+            for semana in ax3.get_xticks():
+                semana_inicio = plt.matplotlib.dates.num2date(semana)
+                semana_fim = semana_inicio + timedelta(days=6)
+                tick_labels.append(f"{semana_inicio.strftime('%d/%m')}\na\n{semana_fim.strftime('%d/%m')}")
+            
+            ax3.set_xticklabels(tick_labels)
             
             # Legenda otimizada para usar toda a largura
             n_cols = min(4, len(lines))  # Máximo de 4 colunas, mas ajusta automaticamente
