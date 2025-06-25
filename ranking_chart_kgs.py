@@ -6,6 +6,13 @@ import shutil
 from datetime import datetime
 import psutil
 
+# Dicionário para traduzir os meses para português
+MESES_PT = {
+    1: 'Janeiro', 2: 'Fevereiro', 3: 'Março', 4: 'Abril',
+    5: 'Maio', 6: 'Junho', 7: 'Julho', 8: 'Agosto',
+    9: 'Setembro', 10: 'Outubro', 11: 'Novembro', 12: 'Dezembro'
+}
+
 def check_disk_space(path, min_space_gb=1):
     """Verifica se há espaço suficiente em disco"""
     usage = shutil.disk_usage(os.path.dirname(path))
@@ -21,11 +28,28 @@ def clean_matplotlib_memory():
 file_path = r"C:\Users\gmass\Downloads\Margem_250531 - wapp - V3.xlsx"
 sheet_name = "Base (3,5%)"
 output_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
-output_path = os.path.join(output_dir, 'Ranking_Produtos_Tonelagem.pdf')
-temp_path = os.path.join(output_dir, 'temp_Ranking.pdf')
-items_per_page = 10
+items_per_page = 3
 
 try:
+    # Ler os dados primeiro para obter as datas
+    df = pd.read_excel(file_path, sheet_name=sheet_name, header=8)[
+        ['CODPRODUTO', 'DESCRICAO', 'QTDE REAL', 'DATA']]
+    df = df[df['QTDE REAL'] >= 0]
+    
+    # Converter DATA para datetime e obter mês/ano
+    df['DATA'] = pd.to_datetime(df['DATA'])
+    primeiro_mes = df['DATA'].iloc[0].month
+    primeiro_ano = df['DATA'].iloc[0].year
+    
+    # Obter nome do mês em português
+    nome_mes = MESES_PT.get(primeiro_mes, f'Mês {primeiro_mes}')
+    
+    # Criar nome do arquivo com as variáveis
+    output_filename = f"Relatório Analítico de Vendas - {nome_mes} {primeiro_ano} - {items_per_page} em {items_per_page}.pdf"
+    output_path = os.path.join(output_dir, output_filename)
+    temp_path = os.path.join(output_dir, f"temp_{output_filename}")
+
+
     # Verificar espaço em disco
     if not check_disk_space(output_path):
         raise RuntimeError("Espaço insuficiente em disco para gerar o relatório")
@@ -38,14 +62,6 @@ try:
             except PermissionError:
                 raise RuntimeError(f"Feche o arquivo {path} antes de executar")
 
-    # Ler e processar os dados
-    df = pd.read_excel(file_path, sheet_name=sheet_name, header=8)[
-        ['CODPRODUTO', 'DESCRICAO', 'QTDE REAL', 'DATA']]
-    df = df[df['QTDE REAL'] >= 0]
-    
-    # Converter DATA para datetime
-    df['DATA'] = pd.to_datetime(df['DATA'])
-    
     # Processar dados para o ranking
     grouped = df.groupby(['CODPRODUTO', 'DESCRICAO'])['QTDE REAL'].sum().reset_index()
     grouped['QTDE REAL'] = grouped['QTDE REAL'].round(3)
@@ -86,7 +102,7 @@ try:
             table.set_fontsize(8)
             table.scale(1, 1.3)
             
-            # Gráfico de Pizza - Legenda acima
+            # Gráfico de Pizza 
             ax2.set_title('Distribuição Percentual', fontsize=10, pad=10)
             wedges, texts, autotexts = ax2.pie(
                 chunk['QTDE REAL'],
@@ -100,7 +116,6 @@ try:
             # Legenda otimizada para usar toda a largura
             n_cols = min(4, len(chunk))  # Máximo de 4 colunas, mas ajusta automaticamente
             ax2.legend(wedges, chunk['DESCRICAO'],
-                      title="Produtos",
                       loc="upper center",
                       bbox_to_anchor=(0.5, -0.05),  # Posicionada abaixo do gráfico
                       ncol=n_cols,
@@ -108,7 +123,7 @@ try:
                       title_fontsize=8,
                       frameon=False)
             
-            # Gráfico de Linha - Legenda acima
+            # Gráfico de Linha 
             ts_filtered = time_series[time_series['CODPRODUTO'].isin(produtos_na_pagina)]
             colors = [w.get_facecolor() for w in wedges]
             
@@ -125,6 +140,16 @@ try:
                                markersize=4, linewidth=1.5)
                 lines.append(line)
                 labels.append(group['DESCRICAO'].iloc[0])
+                
+                # Adicionar os valores acima de cada ponto
+                for x, y in zip(group['DATA'], group['QTDE REAL']):
+                    ax3.annotate(f'{y:.1f}', 
+                                xy=(x, y),
+                                xytext=(0, 5),  # 5 pontos de deslocamento vertical
+                                textcoords='offset points',
+                                ha='center', va='bottom',
+                                fontsize=6,
+                                color=colors[idx])
             
             # Legenda otimizada para usar toda a largura
             n_cols = min(4, len(lines))  # Máximo de 4 colunas, mas ajusta automaticamente
