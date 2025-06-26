@@ -153,7 +153,6 @@ try:
             )
 
             # Aplicar cores dinâmicas
-            # Aplicar cores dinâmicas para melhor contraste
             for text, wedge in zip(autotexts, wedges):
                 # Mantém o texto branco com contorno preto
                 text.set_color('white')
