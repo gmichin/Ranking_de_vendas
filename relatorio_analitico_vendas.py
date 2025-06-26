@@ -142,25 +142,21 @@ try:
                 textprops={
                     'fontsize': 7,
                     'color': 'white',  # Cor principal do texto
-                    'path_effects': [
-                        patheffects.withStroke(linewidth=2, foreground='black'),  # Contorno
-                        patheffects.Normal()  # Garante que o texto principal seja visível
-                    ]
+                    'path_effects': [patheffects.Normal()]  # Removemos o contorno padrão
                 },
                 wedgeprops={'linewidth': 0.5, 'edgecolor': 'white'},
                 pctdistance=0.85,
                 colors=boosted_colors
             )
-
-            # Aplicar cores dinâmicas
+            
+            # Aplicar cores dinâmicas com contorno da mesma cor da fatia
             for text, wedge in zip(autotexts, wedges):
-                # Mantém o texto branco com contorno preto
+                wedge_color = wedge.get_facecolor()
                 text.set_color('white')
                 text.set_path_effects([
-                    patheffects.withStroke(linewidth=2, foreground='black'),
+                    patheffects.withStroke(linewidth=2, foreground=wedge_color),  # Contorno com a cor da fatia
                     patheffects.Normal()
                 ])
-
             # Criar mapeamento de cores para os produtos desta página
             product_colors = {prod: boosted_colors[i] for i, prod in enumerate(produtos_na_pagina)}
             
@@ -247,12 +243,20 @@ try:
             # Adicionar os valores em cima de cada barra
             for bar in bars:
                 height = bar.get_height()
-                ax4.annotate(f'{height:.1f}',
-                            xy=(bar.get_x() + bar.get_width() / 2, height),
-                            xytext=(0, 3),  # 3 points vertical offset
-                            textcoords="offset points",
-                            ha='center', va='bottom',
-                            fontsize=8)
+                bar_color = bar.get_facecolor()
+                annotation = ax4.annotate(f'{height:.1f}',
+                                        xy=(bar.get_x() + bar.get_width() / 2, height),
+                                        xytext=(0, 3),  # 3 points vertical offset
+                                        textcoords="offset points",
+                                        ha='center', va='bottom',
+                                        fontsize=8,
+                                        color='white')  # Texto branco
+                
+                # Adicionar contorno com a cor da barra
+                annotation.set_path_effects([
+                    patheffects.withStroke(linewidth=2, foreground=bar_color),
+                    patheffects.Normal()
+                ])
             
             # Rotacionar os labels do eixo x para melhor legibilidade
             plt.setp(ax4.get_xticklabels(), rotation=15, ha='right', fontsize=8)
