@@ -89,7 +89,7 @@ try:
             fig.suptitle(f'Ranking de Produtos {i+1}-{min(i+items_per_page, len(sorted_df))}', 
                         fontsize=14, y=1.02)
             
-            # Tabela
+            # Tabela (mesmo código anterior)
             ax1.axis('off')
             table_data = chunk[['Posição', 'CODPRODUTO', 'DESCRICAO', 'QTDE REAL']].values
             table = ax1.table(
@@ -105,20 +105,45 @@ try:
             
             # Gráfico de Pizza 
             ax2.set_title('Distribuição Percentual', fontsize=10, pad=10)
+            
+            # Opções: hsv
+            colormap_name = 'jet'
+            
+            # Criar um colormap apenas para os produtos desta página
+            num_produtos = len(produtos_na_pagina)
+            colors = plt.cm.get_cmap(colormap_name, num_produtos)
+            
+            # Aumentar a saturação e brilho das cores
+            def boost_color(color, saturation_factor=1.3, brightness_factor=1.1):
+                import colorsys
+                r, g, b, a = color
+                h, s, v = colorsys.rgb_to_hsv(r, g, b)
+                s = min(1.0, s * saturation_factor)
+                v = min(1.0, v * brightness_factor)
+                r, g, b = colorsys.hsv_to_rgb(h, s, v)
+                return (r, g, b, a)
+            
+            # Aplicar cores boosteadas
+            boosted_colors = [boost_color(colors(i)) for i in range(num_produtos)]
+            
             wedges, texts, autotexts = ax2.pie(
                 chunk['QTDE REAL'],
                 autopct=lambda p: f'{p:.1f}%\n({p*sum(chunk["QTDE REAL"])/100:.1f} kg)',
                 startangle=140,
-                textprops={'fontsize': 7},
+                textprops={'fontsize': 7, 'color': 'black'},
                 wedgeprops={'linewidth': 0.5, 'edgecolor': 'white'},
-                pctdistance=0.85
+                pctdistance=0.85,
+                colors=boosted_colors  # Usar cores boosteadas
             )
+
+            # Criar mapeamento de cores para os produtos desta página
+            product_colors = {prod: boosted_colors[i] for i, prod in enumerate(produtos_na_pagina)}
             
             # Legenda otimizada para usar toda a largura
-            n_cols = min(4, len(chunk))  # Máximo de 4 colunas, mas ajusta automaticamente
+            n_cols = min(4, len(chunk))
             ax2.legend(wedges, chunk['DESCRICAO'],
                       loc="upper center",
-                      bbox_to_anchor=(0.5, -0.05),  # Posicionada abaixo do gráfico
+                      bbox_to_anchor=(0.5, -0.05),
                       ncol=n_cols,
                       fontsize=7,
                       title_fontsize=8,
@@ -126,18 +151,18 @@ try:
             
             # Gráfico de Linha (agora com um ponto por semana)
             ts_filtered = time_series[time_series['CODPRODUTO'].isin(produtos_na_pagina)]
-            colors = [w.get_facecolor() for w in wedges]
             
             ax3.set_title('Evolução Temporal (por semana)', fontsize=10, pad=10)
             ax3.set_ylabel('Tonelagem (kg)', fontsize=8)
             
             lines = []
             labels = []
-            for idx, (produto, group) in enumerate(ts_filtered.groupby('CODPRODUTO')):
+            for produto, group in ts_filtered.groupby('CODPRODUTO'):
                 group = group.sort_values('SEMANA')
+                line_color = product_colors[produto]  # Usar a mesma cor do gráfico de pizza
                 line, = ax3.plot(group['SEMANA'], group['QTDE REAL'], 
                                marker='o', linestyle='-', 
-                               color=colors[idx], 
+                               color=line_color,  # Cor mapeada
                                markersize=4, linewidth=1.5)
                 lines.append(line)
                 labels.append(group['DESCRICAO'].iloc[0])
@@ -149,7 +174,7 @@ try:
                                 textcoords='offset points',
                                 ha='center', va='bottom',
                                 fontsize=6,
-                                color=colors[idx])
+                                color=line_color)  # Mesma cor da linha
             
             # Formatando o eixo x para mostrar o período semanal
             ax3.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%d/%m'))
