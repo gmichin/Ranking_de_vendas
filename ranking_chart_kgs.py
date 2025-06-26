@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import os
 import shutil
-from datetime import datetime, timedelta
-import psutil
+from datetime import timedelta
+from matplotlib import patheffects
 
 # Dicionário para traduzir os meses para português
 MESES_PT = {
@@ -80,11 +80,12 @@ try:
             chunk = sorted_df.iloc[i:i+items_per_page]
             produtos_na_pagina = chunk['CODPRODUTO'].tolist()
             
-            fig = plt.figure(figsize=(11, 14), constrained_layout=True)
-            gs = fig.add_gridspec(3, 1)
+            fig = plt.figure(figsize=(11, 16), constrained_layout=True)  # Aumentado para 16 para acomodar o novo gráfico
+            gs = fig.add_gridspec(4, 1)  # Agora são 4 linhas
             ax1 = fig.add_subplot(gs[0])  # Tabela
             ax2 = fig.add_subplot(gs[1])  # Pizza
             ax3 = fig.add_subplot(gs[2])  # Linha
+            ax4 = fig.add_subplot(gs[3])  # Barras - novo gráfico
             
             fig.suptitle(f'Ranking de Produtos {i+1}-{min(i+items_per_page, len(sorted_df))}', 
                         fontsize=14, y=1.02)
@@ -111,7 +112,7 @@ try:
             
             # Criar um colormap apenas para os produtos desta página
             num_produtos = len(produtos_na_pagina)
-            colors = plt.cm.get_cmap(colormap_name, num_produtos)
+            colors = plt.colormaps[colormap_name].resampled(num_produtos)
             
             # Aumentar a saturação e brilho das cores
             def boost_color(color, saturation_factor=1.3, brightness_factor=1.1):
@@ -126,15 +127,40 @@ try:
             # Aplicar cores boosteadas
             boosted_colors = [boost_color(colors(i)) for i in range(num_produtos)]
             
+            # Adicione esta função
+            def get_contrast_color(color):
+                """Retorna preto ou branco dependendo do brilho da cor de fundo"""
+                r, g, b, a = color
+                brightness = (0.299 * r + 0.587 * g + 0.114 * b)
+                return 'black' if brightness > 0.5 else 'white'
+
+            # Modifique a criação do gráfico de pizza:
             wedges, texts, autotexts = ax2.pie(
                 chunk['QTDE REAL'],
                 autopct=lambda p: f'{p:.1f}%\n({p*sum(chunk["QTDE REAL"])/100:.1f} kg)',
                 startangle=140,
-                textprops={'fontsize': 7, 'color': 'black'},
+                textprops={
+                    'fontsize': 7,
+                    'color': 'white',  # Cor principal do texto
+                    'path_effects': [
+                        patheffects.withStroke(linewidth=2, foreground='black'),  # Contorno
+                        patheffects.Normal()  # Garante que o texto principal seja visível
+                    ]
+                },
                 wedgeprops={'linewidth': 0.5, 'edgecolor': 'white'},
                 pctdistance=0.85,
-                colors=boosted_colors  # Usar cores boosteadas
+                colors=boosted_colors
             )
+
+            # Aplicar cores dinâmicas
+            # Aplicar cores dinâmicas para melhor contraste
+            for text, wedge in zip(autotexts, wedges):
+                # Mantém o texto branco com contorno preto
+                text.set_color('white')
+                text.set_path_effects([
+                    patheffects.withStroke(linewidth=2, foreground='black'),
+                    patheffects.Normal()
+                ])
 
             # Criar mapeamento de cores para os produtos desta página
             product_colors = {prod: boosted_colors[i] for i, prod in enumerate(produtos_na_pagina)}
@@ -202,8 +228,36 @@ try:
             plt.setp(ax3.get_xticklabels(), rotation=30, ha='right', fontsize=7)
             plt.setp(ax3.get_yticklabels(), fontsize=7)
             
-            # Ajustar layout para acomodar as legendas
-            plt.subplots_adjust(hspace=0.5)
+            # NOVO GRÁFICO DE BARRAS
+            ax4.set_title('Quantidade por Produto', fontsize=10, pad=10)
+            ax4.set_ylabel('Tonelagem (kg)', fontsize=8)
+            
+            # Criar as barras com as mesmas cores dos outros gráficos
+            bars = ax4.bar(
+                chunk['DESCRICAO'],
+                chunk['QTDE REAL'],
+                color=[product_colors[p] for p in produtos_na_pagina]
+            )
+            
+            # Adicionar os valores em cima de cada barra
+            for bar in bars:
+                height = bar.get_height()
+                ax4.annotate(f'{height:.1f}',
+                            xy=(bar.get_x() + bar.get_width() / 2, height),
+                            xytext=(0, 3),  # 3 points vertical offset
+                            textcoords="offset points",
+                            ha='center', va='bottom',
+                            fontsize=8)
+            
+            # Rotacionar os labels do eixo x para melhor legibilidade
+            plt.setp(ax4.get_xticklabels(), rotation=15, ha='right', fontsize=8)
+            plt.setp(ax4.get_yticklabels(), fontsize=7)
+            
+            # Adicionar grid horizontal
+            ax4.grid(True, axis='y', linestyle=':', alpha=0.5)
+            
+            # Ajustar layout para acomodar todos os gráficos
+            plt.subplots_adjust(hspace=0.7)
             
             # Configurações do PDF
             pdf.savefig(fig, dpi=150, bbox_inches='tight', pad_inches=0.5)
