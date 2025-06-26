@@ -186,22 +186,28 @@ try:
             for produto, group in ts_filtered.groupby('CODPRODUTO'):
                 group = group.sort_values('SEMANA')
                 line_color = product_colors[produto]  # Usar a mesma cor do gráfico de pizza
+
                 line, = ax3.plot(group['SEMANA'], group['QTDE REAL'], 
                                marker='o', linestyle='-', 
-                               color=line_color,  # Cor mapeada
+                               color=line_color,
                                markersize=4, linewidth=1.5)
                 lines.append(line)
                 labels.append(group['DESCRICAO'].iloc[0])
-                
+
                 for x, y in zip(group['SEMANA'], group['QTDE REAL']):
-                    ax3.annotate(f'{y:.1f}', 
-                                xy=(x, y),
-                                xytext=(0, 5),
-                                textcoords='offset points',
-                                ha='center', va='bottom',
-                                fontsize=6,
-                                color=line_color)  # Mesma cor da linha
-            
+                    annotation = ax3.annotate(f'{y:.1f}', 
+                                            xy=(x, y),
+                                            xytext=(0, 5),
+                                            textcoords='offset points',
+                                            ha='center', va='bottom',
+                                            fontsize=6,
+                                            color='white')  # Texto branco
+
+                    # Adiciona contorno com a cor da linha
+                    annotation.set_path_effects([
+                        patheffects.withStroke(linewidth=2, foreground=line_color),
+                        patheffects.Normal()
+                    ])
             # Formatando o eixo x para mostrar o período semanal
             ax3.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%d/%m'))
             ax3.xaxis.set_major_locator(plt.matplotlib.dates.WeekdayLocator(byweekday=plt.matplotlib.dates.MO))
