@@ -5,6 +5,7 @@ import os
 import shutil
 from datetime import timedelta
 from matplotlib import patheffects
+import re
 
 # Dicionário para traduzir os meses para português
 MESES_PT = {
@@ -24,13 +25,38 @@ def clean_matplotlib_memory():
     import gc
     gc.collect()
 
+def format_currency(value):
+    """Formata um valor como moeda brasileira (R$)"""
+    return f"R${value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+def parse_negative_value(value):
+    """Converte valores no formato (1.23) para -1.23"""
+    if isinstance(value, str) and value.startswith('(') and value.endswith(')'):
+        try:
+            return -float(value[1:-1].replace(',', ''))
+        except ValueError:
+            return value
+    return value
+
 def generate_report(file_path, sheet_name, output_dir, metric_column, metric_name, unit, items_per_page=5):
     """Gera um relatório PDF para uma métrica específica"""
     try:
         # Ler os dados primeiro para obter as datas
         df = pd.read_excel(file_path, sheet_name=sheet_name, header=8)[
             ['CODPRODUTO', 'DESCRICAO', metric_column, 'DATA']]
-        df = df[df[metric_column] >= 0]
+        
+        # Tratar valores negativos no formato (1) = -1 para Fat Liquido
+        if metric_column == 'Fat Liquido':
+            df[metric_column] = df[metric_column].apply(parse_negative_value)
+        
+        # Tratar valores negativos ou NaN na métrica
+        df = df[df[metric_column].notna()]
+        if metric_name != 'Margem':  # Margem pode ter valores negativos
+            df = df[df[metric_column] >= 0]
+        
+        # Converter Margem para porcentagem (se estava em decimal)
+        if metric_name == 'Margem':
+            df[metric_column] = df[metric_column] * 100
         
         # Converter DATA para datetime e obter mês/ano
         df['DATA'] = pd.to_datetime(df['DATA'])
@@ -58,15 +84,31 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                     raise RuntimeError(f"Feche o arquivo {path} antes de executar")
 
         # Processar dados para o ranking
-        grouped = df.groupby(['CODPRODUTO', 'DESCRICAO'])[metric_column].sum().reset_index()
-        grouped[metric_column] = grouped[metric_column].round(3)
+        # Primeiro, encontre a descrição mais recente para cada produto
+        latest_descriptions = df.sort_values('DATA', ascending=False).drop_duplicates('CODPRODUTO')[['CODPRODUTO', 'DESCRICAO']]
+        
+        # Agora some os valores por CODPRODUTO
+        grouped = df.groupby('CODPRODUTO')[metric_column].sum().reset_index()
+        
+        # Aplicar formatação específica para cada métrica
+        if metric_name == 'Faturamento':
+            grouped[metric_column] = grouped[metric_column].round(2)
+        elif metric_name == 'Margem':
+            grouped[metric_column] = grouped[metric_column].round(2)  # 2 casas decimais para Margem
+        else:  # Tonelagem
+            grouped[metric_column] = grouped[metric_column].round(3)
+        
+        # Junte com as descrições mais recentes
+        grouped = pd.merge(grouped, latest_descriptions, on='CODPRODUTO', how='left')
+        
+        # Ordene e prepare o DataFrame final
         sorted_df = grouped.sort_values(metric_column, ascending=False).reset_index(drop=True)
         sorted_df.insert(0, 'Posição', range(1, len(sorted_df)+1))
         
         # Processar dados para série temporal - Agrupando por semana corretamente
         time_series = df.copy()
         time_series['SEMANA'] = time_series['DATA'].dt.to_period('W').dt.start_time
-        time_series = time_series.groupby(['CODPRODUTO', 'DESCRICAO', 'SEMANA'])[metric_column].sum().reset_index()
+        time_series = time_series.groupby(['CODPRODUTO', 'SEMANA'])[metric_column].sum().reset_index()
         
         # Criar PDF temporário primeiro
         with PdfPages(temp_path) as pdf:
@@ -74,7 +116,6 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
             fig_title = plt.figure(figsize=(11, 16))
             plt.text(0.5, 0.5, f"RELATÓRIO ANALÍTICO DE VENDAS - {metric_name.upper()}", 
                      fontsize=24, ha='center', va='center', fontweight='bold')
-            # Adicionando o mês e ano abaixo do título
             plt.text(0.5, 0.45, f"{nome_mes} {primeiro_ano}", 
                      fontsize=18, ha='center', va='center', fontweight='normal')
             plt.axis('off')
@@ -88,21 +129,32 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                 chunk = sorted_df.iloc[i:i+items_per_page]
                 produtos_na_pagina = chunk['CODPRODUTO'].tolist()
                 
-                fig = plt.figure(figsize=(11, 16), constrained_layout=True)
-                gs = fig.add_gridspec(4, 1)  # Agora são 4 linhas
-                ax1 = fig.add_subplot(gs[0])  # Tabela
-                ax2 = fig.add_subplot(gs[1])  # Pizza
-                ax3 = fig.add_subplot(gs[2])  # Linha
-                ax4 = fig.add_subplot(gs[3])  # Barras - novo gráfico
+                fig = plt.figure(figsize=(11, 16))  # Removido constrained_layout
+                gs = fig.add_gridspec(4, 1)
+                ax1 = fig.add_subplot(gs[0])
+                ax2 = fig.add_subplot(gs[1])
+                ax3 = fig.add_subplot(gs[2])
+                ax4 = fig.add_subplot(gs[3])
                 
                 fig.suptitle(f'Ranking de Produtos {i+1}-{min(i+items_per_page, len(sorted_df))}', 
                             fontsize=14, y=1.02)
                 
-                # Tabela (mesmo código anterior)
+                # Tabela
                 ax1.axis('off')
-                table_data = chunk[['Posição', 'CODPRODUTO', 'DESCRICAO', metric_column]].values
+                
+                # Formatar os valores para exibição na tabela
+                display_values = chunk[metric_column].copy()
+                if metric_name == 'Faturamento':
+                    display_values = display_values.apply(format_currency)
+                elif metric_name == 'Margem':
+                    display_values = display_values.apply(lambda x: f"{x:.2f}%")
+                else:  # Tonelagem
+                    display_values = display_values.apply(lambda x: f"{x:,.3f}".replace(",", "X").replace(".", ",").replace("X", "."))
+                
+                table_data = chunk[['Posição', 'CODPRODUTO', 'DESCRICAO']].copy()
+                table_data[metric_column] = display_values
                 table = ax1.table(
-                    cellText=table_data,
+                    cellText=table_data.values,
                     colLabels=['Posição', 'Código', 'Descrição', f'{metric_name} ({unit})'],
                     loc='center',
                     cellLoc='center',
@@ -114,81 +166,65 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                 
                 # Gráfico de Pizza 
                 ax2.set_title('Distribuição Percentual', fontsize=10, pad=10)
-                
-                # Opções: hsv
                 colormap_name = 'jet'
-                
-                # Criar um colormap apenas para os produtos desta página
                 num_produtos = len(produtos_na_pagina)
                 colors = plt.colormaps[colormap_name].resampled(num_produtos)
                 
-                # Aumentar a saturação e brilho das cores
-                def boost_color(color, saturation_factor=1.3, brightness_factor=1.1):
-                    import colorsys
-                    r, g, b, a = color
-                    h, s, v = colorsys.rgb_to_hsv(r, g, b)
-                    s = min(1.0, s * saturation_factor)
-                    v = min(1.0, v * brightness_factor)
-                    r, g, b = colorsys.hsv_to_rgb(h, s, v)
-                    return (r, g, b, a)
+                # Verificar se há valores válidos para o gráfico de pizza
+                if chunk[metric_column].sum() > 0:
+                    # Formatar rótulos de porcentagem de acordo com a métrica
+                    if metric_name == 'Faturamento':
+                        autopct_format = lambda p: f'{p:.1f}%\n({format_currency(p*sum(chunk[metric_column])/100)})'
+                    elif metric_name == 'Margem':
+                        autopct_format = lambda p: f'{p:.1f}%\n({p*sum(chunk[metric_column])/100:.2f}%)'
+                    else:
+                        autopct_format = lambda p: f'{p:.1f}%\n({p*sum(chunk[metric_column])/100:,.1f} {unit})'.replace(",", "X").replace(".", ",").replace("X", ".")
+                    
+                    wedges, texts, autotexts = ax2.pie(
+                        chunk[metric_column],
+                        autopct=autopct_format,
+                        startangle=140,
+                        textprops={'fontsize': 7, 'color': 'white'},
+                        wedgeprops={'linewidth': 0.5, 'edgecolor': 'white'},
+                        pctdistance=0.85,
+                        colors=[colors(i) for i in range(num_produtos)]
+                    )
+                    
+                    for text, wedge in zip(autotexts, wedges):
+                        wedge_color = wedge.get_facecolor()
+                        text.set_color('white')
+                        text.set_path_effects([
+                            patheffects.withStroke(linewidth=2, foreground=wedge_color),
+                            patheffects.Normal()
+                        ])
+                    
+                    n_cols = min(4, len(chunk))
+                    ax2.legend(wedges, chunk['DESCRICAO'],
+                              loc="upper center",
+                              bbox_to_anchor=(0.5, -0.05),
+                              ncol=n_cols,
+                              fontsize=7,
+                              title_fontsize=8,
+                              frameon=False)
+                else:
+                    ax2.text(0.5, 0.5, 'Dados insuficientes\npara o gráfico', 
+                            ha='center', va='center', fontsize=10)
+                    ax2.axis('off')
                 
-                # Aplicar cores boosteadas
-                boosted_colors = [boost_color(colors(i)) for i in range(num_produtos)]
-                
-                # Adicione esta função
-                def get_contrast_color(color):
-                    """Retorna preto ou branco dependendo do brilho da cor de fundo"""
-                    r, g, b, a = color
-                    brightness = (0.299 * r + 0.587 * g + 0.114 * b)
-                    return 'black' if brightness > 0.5 else 'white'
-
-                # Modifique a criação do gráfico de pizza:
-                wedges, texts, autotexts = ax2.pie(
-                    chunk[metric_column],
-                    autopct=lambda p: f'{p:.1f}%\n({p*sum(chunk[metric_column])/100:.1f} {unit})',
-                    startangle=140,
-                    textprops={
-                        'fontsize': 7,
-                        'color': 'white',  # Cor principal do texto
-                        'path_effects': [patheffects.Normal()]  # Removemos o contorno padrão
-                    },
-                    wedgeprops={'linewidth': 0.5, 'edgecolor': 'white'},
-                    pctdistance=0.85,
-                    colors=boosted_colors
-                )
-                
-                # Aplicar cores dinâmicas com contorno da mesma cor da fatia
-                for text, wedge in zip(autotexts, wedges):
-                    wedge_color = wedge.get_facecolor()
-                    text.set_color('white')
-                    text.set_path_effects([
-                        patheffects.withStroke(linewidth=2, foreground=wedge_color),  # Contorno com a cor da fatia
-                        patheffects.Normal()
-                    ])
-                # Criar mapeamento de cores para os produtos desta página
-                product_colors = {prod: boosted_colors[i] for i, prod in enumerate(produtos_na_pagina)}
-                
-                # Legenda otimizada para usar toda a largura
-                n_cols = min(4, len(chunk))
-                ax2.legend(wedges, chunk['DESCRICAO'],
-                          loc="upper center",
-                          bbox_to_anchor=(0.5, -0.05),
-                          ncol=n_cols,
-                          fontsize=7,
-                          title_fontsize=8,
-                          frameon=False)
-                
-                # Gráfico de Linha (agora com um ponto por semana)
+                # Gráfico de Linha
                 ts_filtered = time_series[time_series['CODPRODUTO'].isin(produtos_na_pagina)]
+                ts_filtered = pd.merge(ts_filtered, latest_descriptions, on='CODPRODUTO', how='left')
                 
                 ax3.set_title('Evolução Temporal (por semana)', fontsize=10, pad=10)
                 ax3.set_ylabel(f'{metric_name} ({unit})', fontsize=8)
                 
                 lines = []
                 labels = []
+                product_colors = {prod: colors(i) for i, prod in enumerate(produtos_na_pagina)}
+                
                 for produto, group in ts_filtered.groupby('CODPRODUTO'):
                     group = group.sort_values('SEMANA')
-                    line_color = product_colors[produto]  # Usar a mesma cor do gráfico de pizza
+                    line_color = product_colors[produto]
 
                     line, = ax3.plot(group['SEMANA'], group[metric_column], 
                                    marker='o', linestyle='-', 
@@ -197,25 +233,30 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                     lines.append(line)
                     labels.append(group['DESCRICAO'].iloc[0])
 
+                    # Formatar anotações de acordo com a métrica
                     for x, y in zip(group['SEMANA'], group[metric_column]):
-                        annotation = ax3.annotate(f'{y:.1f}', 
+                        if metric_name == 'Faturamento':
+                            label = format_currency(y)
+                        elif metric_name == 'Margem':
+                            label = f'{y:.2f}%'
+                        else:
+                            label = f'{y:,.1f}'.replace(",", "X").replace(".", ",").replace("X", ".")
+                        
+                        annotation = ax3.annotate(label, 
                                                 xy=(x, y),
                                                 xytext=(0, 5),
                                                 textcoords='offset points',
                                                 ha='center', va='bottom',
                                                 fontsize=6,
-                                                color='white')  # Texto branco
-
-                        # Adiciona contorno com a cor da linha
+                                                color='white')
                         annotation.set_path_effects([
                             patheffects.withStroke(linewidth=2, foreground=line_color),
                             patheffects.Normal()
                         ])
-                # Formatando o eixo x para mostrar o período semanal
+                
                 ax3.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%d/%m'))
                 ax3.xaxis.set_major_locator(plt.matplotlib.dates.WeekdayLocator(byweekday=plt.matplotlib.dates.MO))
                 
-                # Criando labels que mostram o período da semana
                 tick_labels = []
                 for semana in ax3.get_xticks():
                     semana_inicio = plt.matplotlib.dates.num2date(semana)
@@ -224,11 +265,10 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                 
                 ax3.set_xticklabels(tick_labels)
                 
-                # Legenda otimizada para usar toda a largura
-                n_cols = min(4, len(lines))  # Máximo de 4 colunas, mas ajusta automaticamente
+                n_cols = min(4, len(lines))
                 ax3.legend(lines, labels,
                           loc="upper center",
-                          bbox_to_anchor=(0.5, -0.2),  # Posicionada abaixo do gráfico
+                          bbox_to_anchor=(0.5, -0.2),
                           ncol=n_cols,
                           fontsize=7,
                           frameon=False)
@@ -237,44 +277,46 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                 plt.setp(ax3.get_xticklabels(), rotation=30, ha='right', fontsize=7)
                 plt.setp(ax3.get_yticklabels(), fontsize=7)
                 
-                # NOVO GRÁFICO DE BARRAS
+                # Gráfico de Barras
                 ax4.set_title(f'{metric_name} por Produto', fontsize=10, pad=10)
                 ax4.set_ylabel(f'{metric_name} ({unit})', fontsize=8)
                 
-                # Criar as barras com as mesmas cores dos outros gráficos
                 bars = ax4.bar(
                     chunk['DESCRICAO'],
                     chunk[metric_column],
                     color=[product_colors[p] for p in produtos_na_pagina]
                 )
                 
-                # Adicionar os valores em cima de cada barra
                 for bar in bars:
                     height = bar.get_height()
                     bar_color = bar.get_facecolor()
-                    annotation = ax4.annotate(f'{height:.1f}',
+                    
+                    # Formatar anotações de acordo com a métrica
+                    if metric_name == 'Faturamento':
+                        label = format_currency(height)
+                    elif metric_name == 'Margem':
+                        label = f'{height:.2f}%'
+                    else:
+                        label = f'{height:,.1f}'.replace(",", "X").replace(".", ",").replace("X", ".")
+                    
+                    annotation = ax4.annotate(label,
                                             xy=(bar.get_x() + bar.get_width() / 2, height),
-                                            xytext=(0, 3),  # 3 points vertical offset
+                                            xytext=(0, 3),
                                             textcoords="offset points",
                                             ha='center', va='bottom',
                                             fontsize=8,
-                                            color='white')  # Texto branco
-                    
-                    # Adicionar contorno com a cor da barra
+                                            color='white')
                     annotation.set_path_effects([
                         patheffects.withStroke(linewidth=2, foreground=bar_color),
                         patheffects.Normal()
                     ])
                 
-                # Rotacionar os labels do eixo x para melhor legibilidade
                 plt.setp(ax4.get_xticklabels(), rotation=15, ha='right', fontsize=8)
                 plt.setp(ax4.get_yticklabels(), fontsize=7)
-                
-                # Adicionar grid horizontal
                 ax4.grid(True, axis='y', linestyle=':', alpha=0.5)
                 
-                # Ajustar layout para acomodar todos os gráficos
-                plt.subplots_adjust(hspace=0.7)
+                # Ajustar layout manualmente
+                plt.tight_layout(rect=[0, 0, 1, 0.95])  # Ajuste para o suptitle
                 
                 # Configurações do PDF
                 pdf.savefig(fig, dpi=150, bbox_inches='tight', pad_inches=0.5)
@@ -287,20 +329,12 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
 
     except Exception as e:
         print(f"ERRO ao gerar relatório de {metric_name}: {str(e)}")
-        # Remover arquivos temporários em caso de erro
         for path in [output_path, temp_path]:
             if os.path.exists(path):
                 try:
                     os.remove(path)
                 except:
                     pass
-        # Sugestões para solução
-        if "PermissionError" in str(e):
-            print("\nDICA: Feche todos os visualizadores de PDF antes de executar")
-        elif "MemoryError" in str(e):
-            print("\nDICA: Reduza items_per_page ou libere memória RAM")
-        elif "disk" in str(e).lower():
-            print("\nDICA: Libere espaço em disco (pelo menos 1GB recomendado)")
 
 # Configuração principal
 file_path = r"C:\Users\win11\Documents\Andrey Enviou\Margem_250531 - wapp - V3.xlsx"
