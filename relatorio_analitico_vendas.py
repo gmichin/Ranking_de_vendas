@@ -25,7 +25,7 @@ def clean_matplotlib_memory():
     gc.collect()
 
 # Configuração
-file_path = r"C:\Users\gmass\Downloads\Margem_250531 - wapp - V3.xlsx"
+file_path = r"C:\Users\win11\Documents\Andrey Enviou\Margem_250531 - wapp - V3.xlsx"
 sheet_name = "Base (3,5%)"
 output_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
 items_per_page = 5
@@ -74,13 +74,25 @@ try:
     
     # Criar PDF temporário primeiro
     with PdfPages(temp_path) as pdf:
+        # Página de título
+        fig_title = plt.figure(figsize=(11, 16))
+        plt.text(0.5, 0.5, "RELATÓRIO ANALÍTICO DE VENDAS - TONELAGEM", 
+                 fontsize=24, ha='center', va='center', fontweight='bold')
+        # Adicionando o mês e ano abaixo do título
+        plt.text(0.5, 0.45, f"{nome_mes} {primeiro_ano}", 
+                 fontsize=18, ha='center', va='center', fontweight='normal')
+        plt.axis('off')
+        pdf.savefig(fig_title, bbox_inches='tight')
+        plt.close(fig_title)
+        
+        # Páginas de conteúdo
         for i in range(0, len(sorted_df), items_per_page):
             clean_matplotlib_memory()
             
             chunk = sorted_df.iloc[i:i+items_per_page]
             produtos_na_pagina = chunk['CODPRODUTO'].tolist()
             
-            fig = plt.figure(figsize=(11, 16), constrained_layout=True)  # Aumentado para 16 para acomodar o novo gráfico
+            fig = plt.figure(figsize=(11, 16), constrained_layout=True)
             gs = fig.add_gridspec(4, 1)  # Agora são 4 linhas
             ax1 = fig.add_subplot(gs[0])  # Tabela
             ax2 = fig.add_subplot(gs[1])  # Pizza
