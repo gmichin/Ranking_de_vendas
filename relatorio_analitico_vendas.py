@@ -29,14 +29,64 @@ def format_currency(value):
     """Formata um valor como moeda brasileira (R$)"""
     return f"R${value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-def parse_negative_value(value):
-    """Converte valores no formato (1.23) para -1.23"""
-    if isinstance(value, str) and value.startswith('(') and value.endswith(')'):
+def clean_currency(value):
+    """
+    Converte valores monetários em formato string para float, tratando:
+    - Positivos: R$ 1.234,56 ou 1.234,56 ou 1234.56
+    - Negativos: R$ (1.234,56) ou (1.234,56) ou -1.234,56 ou R$ -1.234,56
+    """
+    if pd.isna(value):
+        return value
+        
+    if isinstance(value, (int, float)):
+        return float(value)
+        
+    if isinstance(value, str):
+        original = value
+        # Padroniza o formato removendo R$, espaços e caracteres não numéricos exceto ,.-
+        value = value.replace('R$', '').strip()
+        
+        # Verifica se é negativo (diferentes formatos)
+        negative = (value.startswith('-') or 
+                   '(' in value or 
+                   ')' in value or
+                   value.startswith('(') and value.endswith(')'))
+        
+        # Remove todos os caracteres não numéricos exceto pontos e vírgulas
+        cleaned = re.sub(r'[^\d,-.]', '', value)
+        
+        # Remove parênteses se existirem
+        cleaned = cleaned.replace('(', '').replace(')', '')
+        
+        # Trata casos onde o sinal negativo está no meio (formato inválido)
+        if '-' in cleaned[1:]:
+            cleaned = cleaned.replace('-', '')
+        
+        # Determina o separador decimal
+        if ',' in cleaned and '.' in cleaned:
+            # Se tem ambos, assume que vírgula é decimal
+            cleaned = cleaned.replace('.', '').replace(',', '.')
+        elif ',' in cleaned:
+            # Só tem vírgula, verifica se é decimal
+            parts = cleaned.split(',')
+            if len(parts) > 1 and len(parts[-1]) == 2:  # Assume valor monetário com centavos
+                cleaned = cleaned.replace('.', '').replace(',', '.')
+            else:
+                cleaned = cleaned.replace(',', '.')
+        
         try:
-            return -float(value[1:-1].replace(',', ''))
+            num = float(cleaned)
+            return -abs(num) if negative else abs(num)
         except ValueError:
-            return value
+            print(f"Valor não convertido: {original}")
+            return None
     return value
+
+def format_currency(value):
+    """Formata um valor como moeda brasileira (R$) tratando negativos"""
+    abs_value = abs(value)
+    formatted = f"R${abs_value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"-{formatted}" if value < 0 else formatted
 
 def generate_report(file_path, sheet_name, output_dir, metric_column, metric_name, unit, items_per_page=5):
     """Gera um relatório PDF para uma métrica específica"""
@@ -45,14 +95,25 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
         df = pd.read_excel(file_path, sheet_name=sheet_name, header=8)[
             ['CODPRODUTO', 'DESCRICAO', metric_column, 'DATA']]
         
-        # Tratar valores negativos no formato (1) = -1 para Fat Liquido
+       # ETAPA 1: Tratamento de valores monetários
         if metric_column == 'Fat Liquido':
-            df[metric_column] = df[metric_column].apply(parse_negative_value)
-        
-        # Tratar valores negativos ou NaN na métrica
+            df[metric_column] = df[metric_column].apply(clean_currency)
+            df = df[df[metric_column].notna()]
+            
+            print("\nValores negativos APÓS limpeza:")
+            print(df[df[metric_column] < 0].head())
+
+        # ETAPA 2: Filtragem - APENAS para Tonelagem removemos negativos
         df = df[df[metric_column].notna()]
-        if metric_name != 'Margem':  # Margem pode ter valores negativos
+        if metric_name == 'Tonelagem':
             df = df[df[metric_column] >= 0]
+        
+        # ETAPA 3: Processamento do ranking
+        latest_descriptions = df.sort_values('DATA', ascending=False).drop_duplicates('CODPRODUTO')[['CODPRODUTO', 'DESCRICAO']]
+        grouped = df.groupby('CODPRODUTO')[metric_column].sum().reset_index()
+        
+        print(f"\nValores negativos NO AGRUPAMENTO:")
+        print(grouped[grouped[metric_column] < 0].head())
         
         # Converter Margem para porcentagem (se estava em decimal)
         if metric_name == 'Margem':
@@ -87,8 +148,11 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
         # Primeiro, encontre a descrição mais recente para cada produto
         latest_descriptions = df.sort_values('DATA', ascending=False).drop_duplicates('CODPRODUTO')[['CODPRODUTO', 'DESCRICAO']]
         
-        # Agora some os valores por CODPRODUTO
+       # Processar dados para o ranking
         grouped = df.groupby('CODPRODUTO')[metric_column].sum().reset_index()
+        
+        # Adicionar verificação explícita para negativos
+        print(f"\nVerificação pós-agrupamento - Valores negativos existem: {any(grouped[metric_column] < 0)}")
         
         # Aplicar formatação específica para cada métrica
         if metric_name == 'Faturamento':
@@ -123,10 +187,14 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
             plt.close(fig_title)
             
             # Páginas de conteúdo
+            # ETAPA 4: Verificação durante a geração de páginas
             for i in range(0, len(sorted_df), items_per_page):
-                clean_matplotlib_memory()
-                
                 chunk = sorted_df.iloc[i:i+items_per_page]
+            
+                if any(chunk[metric_column] < 0):
+                    print(f"\nPágina {i//items_per_page + 1} contém negativos:")
+                    print(chunk[chunk[metric_column] < 0])
+            
                 produtos_na_pagina = chunk['CODPRODUTO'].tolist()
                 
                 fig = plt.figure(figsize=(11, 16))  # Removido constrained_layout
@@ -326,6 +394,18 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
         os.rename(temp_path, output_path)
         print(f"Relatório de {metric_name} gerado com sucesso em: {output_path}")
         print(f"Tamanho do arquivo: {os.path.getsize(output_path)/1024/1024:.2f} MB")
+        # Verificar se há valores negativos após o processamento
+        negatives = df[df[metric_column] < 0]
+        if not negatives.empty:
+            print(f"\nProdutos com valores negativos que serão incluídos:")
+            print(negatives[['CODPRODUTO', 'DESCRICAO', metric_column]].head())
+        else:
+            print("\nNenhum valor negativo encontrado após processamento")
+        
+        # Verificar valores extremos
+        print("\nValores extremos:")
+        print(f"Top 5 positivos: {df.nlargest(5, metric_column)[[metric_column, 'DESCRICAO']]}")
+        print(f"Top 5 negativos: {df.nsmallest(5, metric_column)[[metric_column, 'DESCRICAO']]}")
 
     except Exception as e:
         print(f"ERRO ao gerar relatório de {metric_name}: {str(e)}")
