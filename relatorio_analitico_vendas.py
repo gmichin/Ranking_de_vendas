@@ -1,3 +1,4 @@
+import warnings
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -6,6 +7,9 @@ import shutil
 from datetime import timedelta
 from matplotlib import patheffects
 import re
+
+# Suprimir warnings do matplotlib
+warnings.filterwarnings("ignore", category=UserWarning)
 
 # Dicionário para traduzir os meses para português
 MESES_PT = {
@@ -88,36 +92,22 @@ def format_currency(value):
     formatted = f"R${abs_value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     return f"-{formatted}" if value < 0 else formatted
 
+def create_report_directory(output_dir, month_name, year):
+    """Cria o diretório para os relatórios se não existir"""
+    dir_name = f"Relatório Analítico de Vendas - {month_name} {year}"
+    report_dir = os.path.join(output_dir, dir_name)
+    
+    if not os.path.exists(report_dir):
+        os.makedirs(report_dir)
+    
+    return report_dir
+
 def generate_report(file_path, sheet_name, output_dir, metric_column, metric_name, unit, items_per_page=5):
     """Gera um relatório PDF para uma métrica específica"""
     try:
         # Ler os dados primeiro para obter as datas
         df = pd.read_excel(file_path, sheet_name=sheet_name, header=8)[
             ['CODPRODUTO', 'DESCRICAO', metric_column, 'DATA']]
-        
-       # ETAPA 1: Tratamento de valores monetários
-        if metric_column == 'Fat Liquido':
-            df[metric_column] = df[metric_column].apply(clean_currency)
-            df = df[df[metric_column].notna()]
-            
-            print("\nValores negativos APÓS limpeza:")
-            print(df[df[metric_column] < 0].head())
-
-        # ETAPA 2: Filtragem - APENAS para Tonelagem removemos negativos
-        df = df[df[metric_column].notna()]
-        if metric_name == 'Tonelagem':
-            df = df[df[metric_column] >= 0]
-        
-        # ETAPA 3: Processamento do ranking
-        latest_descriptions = df.sort_values('DATA', ascending=False).drop_duplicates('CODPRODUTO')[['CODPRODUTO', 'DESCRICAO']]
-        grouped = df.groupby('CODPRODUTO')[metric_column].sum().reset_index()
-        
-        print(f"\nValores negativos NO AGRUPAMENTO:")
-        print(grouped[grouped[metric_column] < 0].head())
-        
-        # Converter Margem para porcentagem (se estava em decimal)
-        if metric_name == 'Margem':
-            df[metric_column] = df[metric_column] * 100
         
         # Converter DATA para datetime e obter mês/ano
         df['DATA'] = pd.to_datetime(df['DATA'])
@@ -127,11 +117,34 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
         # Obter nome do mês em português
         nome_mes = MESES_PT.get(primeiro_mes, f'Mês {primeiro_mes}')
         
+        # Criar diretório para os relatórios
+        report_dir = create_report_directory(output_dir, nome_mes, primeiro_ano)
+        
         # Criar nome do arquivo com as variáveis
         output_filename = f"Relatório Analítico de Vendas - {metric_name} - {nome_mes} {primeiro_ano} - {items_per_page} em {items_per_page}.pdf"
-        output_path = os.path.join(output_dir, output_filename)
-        temp_path = os.path.join(output_dir, f"temp_{output_filename}")
+        output_path = os.path.join(report_dir, output_filename)
+        temp_path = os.path.join(report_dir, f"temp_{output_filename}")
 
+        print(f"Gerando - {output_filename}")
+        
+        # ETAPA 1: Tratamento de valores monetários
+        if metric_column == 'Fat Liquido':
+            df[metric_column] = df[metric_column].apply(clean_currency)
+            df = df[df[metric_column].notna()]
+            
+        # ETAPA 2: Filtragem - APENAS para Tonelagem removemos negativos
+        df = df[df[metric_column].notna()]
+        if metric_name == 'Tonelagem':
+            df = df[df[metric_column] >= 0]
+        
+        # ETAPA 3: Processamento do ranking
+        latest_descriptions = df.sort_values('DATA', ascending=False).drop_duplicates('CODPRODUTO')[['CODPRODUTO', 'DESCRICAO']]
+        grouped = df.groupby('CODPRODUTO')[metric_column].sum().reset_index()
+        
+        # Converter Margem para porcentagem (se estava em decimal)
+        if metric_name == 'Margem':
+            df[metric_column] = df[metric_column] * 100
+        
         # Verificar espaço em disco
         if not check_disk_space(output_path):
             raise RuntimeError("Espaço insuficiente em disco para gerar o relatório")
@@ -145,20 +158,14 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                     raise RuntimeError(f"Feche o arquivo {path} antes de executar")
 
         # Processar dados para o ranking
-        # Primeiro, encontre a descrição mais recente para cada produto
         latest_descriptions = df.sort_values('DATA', ascending=False).drop_duplicates('CODPRODUTO')[['CODPRODUTO', 'DESCRICAO']]
-        
-       # Processar dados para o ranking
         grouped = df.groupby('CODPRODUTO')[metric_column].sum().reset_index()
-        
-        # Adicionar verificação explícita para negativos
-        print(f"\nVerificação pós-agrupamento - Valores negativos existem: {any(grouped[metric_column] < 0)}")
         
         # Aplicar formatação específica para cada métrica
         if metric_name == 'Faturamento':
             grouped[metric_column] = grouped[metric_column].round(2)
         elif metric_name == 'Margem':
-            grouped[metric_column] = grouped[metric_column].round(2)  # 2 casas decimais para Margem
+            grouped[metric_column] = grouped[metric_column].round(2)
         else:  # Tonelagem
             grouped[metric_column] = grouped[metric_column].round(3)
         
@@ -187,17 +194,11 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
             plt.close(fig_title)
             
             # Páginas de conteúdo
-            # ETAPA 4: Verificação durante a geração de páginas
             for i in range(0, len(sorted_df), items_per_page):
                 chunk = sorted_df.iloc[i:i+items_per_page]
-            
-                if any(chunk[metric_column] < 0):
-                    print(f"\nPágina {i//items_per_page + 1} contém negativos:")
-                    print(chunk[chunk[metric_column] < 0])
-            
                 produtos_na_pagina = chunk['CODPRODUTO'].tolist()
                 
-                fig = plt.figure(figsize=(11, 16))  # Removido constrained_layout
+                fig = plt.figure(figsize=(11, 16))
                 gs = fig.add_gridspec(4, 1)
                 ax1 = fig.add_subplot(gs[0])
                 ax2 = fig.add_subplot(gs[1])
@@ -238,9 +239,7 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                 num_produtos = len(produtos_na_pagina)
                 colors = plt.colormaps[colormap_name].resampled(num_produtos)
                 
-                # Verificar se há valores válidos para o gráfico de pizza
                 if chunk[metric_column].sum() > 0:
-                    # Formatar rótulos de porcentagem de acordo com a métrica
                     if metric_name == 'Faturamento':
                         autopct_format = lambda p: f'{p:.1f}%\n({format_currency(p*sum(chunk[metric_column])/100)})'
                     elif metric_name == 'Margem':
@@ -301,7 +300,6 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                     lines.append(line)
                     labels.append(group['DESCRICAO'].iloc[0])
 
-                    # Formatar anotações de acordo com a métrica
                     for x, y in zip(group['SEMANA'], group[metric_column]):
                         if metric_name == 'Faturamento':
                             label = format_currency(y)
@@ -359,7 +357,6 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                     height = bar.get_height()
                     bar_color = bar.get_facecolor()
                     
-                    # Formatar anotações de acordo com a métrica
                     if metric_name == 'Faturamento':
                         label = format_currency(height)
                     elif metric_name == 'Margem':
@@ -383,29 +380,13 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                 plt.setp(ax4.get_yticklabels(), fontsize=7)
                 ax4.grid(True, axis='y', linestyle=':', alpha=0.5)
                 
-                # Ajustar layout manualmente
-                plt.tight_layout(rect=[0, 0, 1, 0.95])  # Ajuste para o suptitle
-                
-                # Configurações do PDF
+                plt.tight_layout(rect=[0, 0, 1, 0.95])
                 pdf.savefig(fig, dpi=150, bbox_inches='tight', pad_inches=0.5)
                 plt.close(fig)
                 
         # Renomear arquivo temporário para final
         os.rename(temp_path, output_path)
-        print(f"Relatório de {metric_name} gerado com sucesso em: {output_path}")
-        print(f"Tamanho do arquivo: {os.path.getsize(output_path)/1024/1024:.2f} MB")
-        # Verificar se há valores negativos após o processamento
-        negatives = df[df[metric_column] < 0]
-        if not negatives.empty:
-            print(f"\nProdutos com valores negativos que serão incluídos:")
-            print(negatives[['CODPRODUTO', 'DESCRICAO', metric_column]].head())
-        else:
-            print("\nNenhum valor negativo encontrado após processamento")
-        
-        # Verificar valores extremos
-        print("\nValores extremos:")
-        print(f"Top 5 positivos: {df.nlargest(5, metric_column)[[metric_column, 'DESCRICAO']]}")
-        print(f"Top 5 negativos: {df.nsmallest(5, metric_column)[[metric_column, 'DESCRICAO']]}")
+        print(f"Finalizado - {output_filename}")
 
     except Exception as e:
         print(f"ERRO ao gerar relatório de {metric_name}: {str(e)}")
@@ -415,20 +396,6 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                     os.remove(path)
                 except:
                     pass
-
-# Configuração principal
-file_path = r"C:\Users\win11\Documents\Andrey Enviou\Margem_250531 - wapp - V3.xlsx"
-sheet_name = "Base (3,5%)"
-output_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
-items_per_page = 5
-
-# Definir as métricas que queremos analisar
-metrics = [
-    {'column': 'QTDE REAL', 'name': 'Tonelagem', 'unit': 'kg'},
-    {'column': 'Fat Liquido', 'name': 'Faturamento', 'unit': 'R$'},
-    {'column': 'Margem', 'name': 'Margem', 'unit': '%'}
-]
-
 
 def generate_general_report(file_path, sheet_name, output_dir):
     """Gera um relatório geral com estatísticas básicas e gráficos comparativos"""
@@ -449,9 +416,14 @@ def generate_general_report(file_path, sheet_name, output_dir):
         primeiro_ano = df['DATA'].iloc[0].year
         nome_mes = MESES_PT.get(primeiro_mes, f'Mês {primeiro_mes}')
         
+        # Criar diretório para os relatórios
+        report_dir = create_report_directory(output_dir, nome_mes, primeiro_ano)
+        
         # Criar nome do arquivo
         output_filename = f"Relatório Analítico de Vendas - Geral - {nome_mes} {primeiro_ano}.pdf"
-        output_path = os.path.join(output_dir, output_filename)
+        output_path = os.path.join(report_dir, output_filename)
+        
+        print(f"Gerando - {output_filename}")
         
         # Verificar espaço em disco
         if not check_disk_space(output_path):
@@ -478,24 +450,19 @@ def generate_general_report(file_path, sheet_name, output_dir):
         
         # Preparar dados para os gráficos de pizza
         def prepare_pie_data(metric_column, metric_name):
-            # Processar dados para o ranking
-            # Se não houver coluna DESCRICAO, usar apenas CODPRODUTO
             group_cols = ['CODPRODUTO']
             if 'DESCRICAO' in df.columns:
                 group_cols.append('DESCRICAO')
             
             grouped = df.groupby('CODPRODUTO')[metric_column].sum().reset_index()
             
-            # Converter Margem para porcentagem se necessário
             if metric_name == 'Margem':
                 grouped[metric_column] = grouped[metric_column] * 100
             
-            # Ordenar e pegar top 20
             sorted_df = grouped.sort_values(metric_column, ascending=False).reset_index(drop=True)
             top20 = sorted_df.head(20)
             resto = sorted_df.iloc[20:]
             
-            # Calcular totais
             total_top20 = top20[metric_column].sum()
             total_resto = resto[metric_column].sum()
             
@@ -506,7 +473,6 @@ def generate_general_report(file_path, sheet_name, output_dir):
                 'total': total_top20 + total_resto
             }
         
-        # Preparar dados para cada métrica
         pie_data = {
             'Tonelagem': prepare_pie_data('QTDE REAL', 'Tonelagem'),
             'Faturamento': prepare_pie_data('Fat Liquido', 'Faturamento'),
@@ -527,15 +493,12 @@ def generate_general_report(file_path, sheet_name, output_dir):
             
             # Página com tabela e gráficos
             fig_content = plt.figure(figsize=(11, 16))
-            
-            # Criar grid para organizar os elementos
             gs = fig_content.add_gridspec(4, 1, height_ratios=[1, 1, 1, 1])
             
             # Tabela na primeira parte
             ax_table = fig_content.add_subplot(gs[0])
             ax_table.axis('off')
             
-            # Criar tabela sem cabeçalhos
             table = ax_table.table(
                 cellText=table_data,
                 loc='center',
@@ -543,32 +506,25 @@ def generate_general_report(file_path, sheet_name, output_dir):
                 colWidths=[0.5, 0.5]
             )
             
-            # Formatar tabela
             table.auto_set_font_size(False)
             table.set_fontsize(12)
             table.scale(1, 2)
-            
-            # Adicionar título à tabela
             ax_table.set_title("Estatísticas Gerais de Vendas", fontsize=14, pad=20)
             
-            # Função para formatar valores
             def format_value(value, metric_name):
                 if metric_name == 'Faturamento':
                     return format_currency(value)
                 elif metric_name == 'Margem':
                     return f"{value:.2f}%"
-                else:  # Tonelagem
+                else:
                     return f"{value:,.1f}".replace(",", "X").replace(".", ",").replace("X", ".")
             
-            # Cores para os gráficos
             colors = ['#1f77b4', '#ff7f0e']
             legend_labels = ['Top 20 Produtos', 'Resto dos Produtos']
             
-            # Criar os três gráficos de pizza
             for i, (metric_name, data) in enumerate(pie_data.items()):
                 ax_pie = fig_content.add_subplot(gs[i+1])
                 
-                # Plotar o gráfico de pizza
                 wedges, texts, autotexts = ax_pie.pie(
                     data['values'],
                     autopct=lambda p: f'{p:.1f}%\n({format_value(p * data["total"] / 100, metric_name)})',
@@ -579,7 +535,6 @@ def generate_general_report(file_path, sheet_name, output_dir):
                     pctdistance=0.85
                 )
                 
-                # Ajustar formatação dos textos
                 for text, wedge in zip(autotexts, wedges):
                     text.set_color('white')
                     text.set_path_effects([
@@ -587,10 +542,7 @@ def generate_general_report(file_path, sheet_name, output_dir):
                         patheffects.Normal()
                     ])
                 
-                # Adicionar título
                 ax_pie.set_title(f"{data['title']} - {nome_mes} {primeiro_ano}", fontsize=12, pad=10)
-                
-                # Adicionar legenda abaixo do gráfico
                 ax_pie.legend(wedges, legend_labels,
                              loc='lower center',
                              bbox_to_anchor=(0.5, -0.2),
@@ -598,14 +550,11 @@ def generate_general_report(file_path, sheet_name, output_dir):
                              fontsize=10,
                              frameon=False)
             
-            # Ajustar layout
             plt.tight_layout()
-            
-            # Salvar página
             pdf.savefig(fig_content, bbox_inches='tight')
             plt.close(fig_content)
             
-        print(f"Relatório Geral gerado com sucesso em: {output_path}")
+        print(f"Finalizado - {output_filename}")
         
     except Exception as e:
         print(f"ERRO ao gerar relatório geral: {str(e)}")
@@ -614,15 +563,29 @@ def generate_general_report(file_path, sheet_name, output_dir):
                 os.remove(output_path)
             except:
                 pass
-            
-# Adicione esta chamada após o loop que gera os outros relatórios
+
+# Configuração principal
+file_path = r"C:\Users\win11\Documents\Andrey Enviou\Margem_250531 - wapp - V3.xlsx"
+sheet_name = "Base (3,5%)"
+output_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
+items_per_page = 5
+
+# Definir as métricas que queremos analisar
+metrics = [
+    {'column': 'QTDE REAL', 'name': 'Tonelagem', 'unit': 'kg'},
+    {'column': 'Fat Liquido', 'name': 'Faturamento', 'unit': 'R$'},
+    {'column': 'Margem', 'name': 'Margem', 'unit': '%'}
+]
+
+
+# Gerar relatório geral primeiro
 generate_general_report(
     file_path=file_path,
     sheet_name=sheet_name,
     output_dir=output_dir
 )
 
-# Gerar todos os relatórios
+# Gerar todos os relatórios específicos
 for metric in metrics:
     generate_report(
         file_path=file_path,
