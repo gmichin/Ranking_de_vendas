@@ -429,6 +429,199 @@ metrics = [
     {'column': 'Margem', 'name': 'Margem', 'unit': '%'}
 ]
 
+
+def generate_general_report(file_path, sheet_name, output_dir):
+    """Gera um relatório geral com estatísticas básicas e gráficos comparativos"""
+    try:
+        # Ler os dados do Excel
+        df = pd.read_excel(file_path, sheet_name=sheet_name, header=8)
+        
+        # Verificar se as colunas necessárias existem
+        required_columns = ['RAZAO', 'VENDEDOR', 'CODPRODUTO', 'DATA', 'QTDE REAL', 'Fat Liquido', 'Margem']
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        
+        if missing_columns:
+            raise ValueError(f"Colunas faltando no arquivo Excel: {', '.join(missing_columns)}")
+        
+        # Obter mês/ano para o nome do arquivo
+        df['DATA'] = pd.to_datetime(df['DATA'])
+        primeiro_mes = df['DATA'].iloc[0].month
+        primeiro_ano = df['DATA'].iloc[0].year
+        nome_mes = MESES_PT.get(primeiro_mes, f'Mês {primeiro_mes}')
+        
+        # Criar nome do arquivo
+        output_filename = f"Relatório Analítico de Vendas - Geral - {nome_mes} {primeiro_ano}.pdf"
+        output_path = os.path.join(output_dir, output_filename)
+        
+        # Verificar espaço em disco
+        if not check_disk_space(output_path):
+            raise RuntimeError("Espaço insuficiente em disco para gerar o relatório")
+
+        # Verificar e remover arquivo existente
+        if os.path.exists(output_path):
+            try:
+                os.remove(output_path)
+            except PermissionError:
+                raise RuntimeError(f"Feche o arquivo {output_path} antes de executar")
+        
+        # Calcular as métricas básicas
+        qtde_clientes = df['RAZAO'].nunique()
+        qtde_vendedores = df['VENDEDOR'].nunique()
+        qtde_produtos = df['CODPRODUTO'].nunique()
+        
+        # Criar dados para a tabela (sem cabeçalhos)
+        table_data = [
+            ['Qtde Clientes', qtde_clientes],
+            ['Qtde Vendedores', qtde_vendedores],
+            ['Qtde Produtos', qtde_produtos]
+        ]
+        
+        # Preparar dados para os gráficos de pizza
+        def prepare_pie_data(metric_column, metric_name):
+            # Processar dados para o ranking
+            # Se não houver coluna DESCRICAO, usar apenas CODPRODUTO
+            group_cols = ['CODPRODUTO']
+            if 'DESCRICAO' in df.columns:
+                group_cols.append('DESCRICAO')
+            
+            grouped = df.groupby('CODPRODUTO')[metric_column].sum().reset_index()
+            
+            # Converter Margem para porcentagem se necessário
+            if metric_name == 'Margem':
+                grouped[metric_column] = grouped[metric_column] * 100
+            
+            # Ordenar e pegar top 20
+            sorted_df = grouped.sort_values(metric_column, ascending=False).reset_index(drop=True)
+            top20 = sorted_df.head(20)
+            resto = sorted_df.iloc[20:]
+            
+            # Calcular totais
+            total_top20 = top20[metric_column].sum()
+            total_resto = resto[metric_column].sum()
+            
+            return {
+                'labels': ['Top 20', 'Resto'],
+                'values': [total_top20, total_resto],
+                'title': f'Top 20 produtos vs Resto - {metric_name}',
+                'total': total_top20 + total_resto
+            }
+        
+        # Preparar dados para cada métrica
+        pie_data = {
+            'Tonelagem': prepare_pie_data('QTDE REAL', 'Tonelagem'),
+            'Faturamento': prepare_pie_data('Fat Liquido', 'Faturamento'),
+            'Margem': prepare_pie_data('Margem', 'Margem')
+        }
+        
+        # Criar PDF
+        with PdfPages(output_path) as pdf:
+            # Página de título
+            fig_title = plt.figure(figsize=(11, 16))
+            plt.text(0.5, 0.5, "RELATÓRIO ANALÍTICO DE VENDAS - GERAL", 
+                     fontsize=24, ha='center', va='center', fontweight='bold')
+            plt.text(0.5, 0.45, f"{nome_mes} {primeiro_ano}", 
+                     fontsize=18, ha='center', va='center', fontweight='normal')
+            plt.axis('off')
+            pdf.savefig(fig_title, bbox_inches='tight')
+            plt.close(fig_title)
+            
+            # Página com tabela e gráficos
+            fig_content = plt.figure(figsize=(11, 16))
+            
+            # Criar grid para organizar os elementos
+            gs = fig_content.add_gridspec(4, 1, height_ratios=[1, 1, 1, 1])
+            
+            # Tabela na primeira parte
+            ax_table = fig_content.add_subplot(gs[0])
+            ax_table.axis('off')
+            
+            # Criar tabela sem cabeçalhos
+            table = ax_table.table(
+                cellText=table_data,
+                loc='center',
+                cellLoc='center',
+                colWidths=[0.5, 0.5]
+            )
+            
+            # Formatar tabela
+            table.auto_set_font_size(False)
+            table.set_fontsize(12)
+            table.scale(1, 2)
+            
+            # Adicionar título à tabela
+            ax_table.set_title("Estatísticas Gerais de Vendas", fontsize=14, pad=20)
+            
+            # Função para formatar valores
+            def format_value(value, metric_name):
+                if metric_name == 'Faturamento':
+                    return format_currency(value)
+                elif metric_name == 'Margem':
+                    return f"{value:.2f}%"
+                else:  # Tonelagem
+                    return f"{value:,.1f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            
+            # Cores para os gráficos
+            colors = ['#1f77b4', '#ff7f0e']
+            legend_labels = ['Top 20 Produtos', 'Resto dos Produtos']
+            
+            # Criar os três gráficos de pizza
+            for i, (metric_name, data) in enumerate(pie_data.items()):
+                ax_pie = fig_content.add_subplot(gs[i+1])
+                
+                # Plotar o gráfico de pizza
+                wedges, texts, autotexts = ax_pie.pie(
+                    data['values'],
+                    autopct=lambda p: f'{p:.1f}%\n({format_value(p * data["total"] / 100, metric_name)})',
+                    startangle=90,
+                    colors=colors,
+                    textprops={'fontsize': 9, 'color': 'white'},
+                    wedgeprops={'linewidth': 0.5, 'edgecolor': 'white'},
+                    pctdistance=0.85
+                )
+                
+                # Ajustar formatação dos textos
+                for text, wedge in zip(autotexts, wedges):
+                    text.set_color('white')
+                    text.set_path_effects([
+                        patheffects.withStroke(linewidth=2, foreground=wedge.get_facecolor()),
+                        patheffects.Normal()
+                    ])
+                
+                # Adicionar título
+                ax_pie.set_title(f"{data['title']} - {nome_mes} {primeiro_ano}", fontsize=12, pad=10)
+                
+                # Adicionar legenda abaixo do gráfico
+                ax_pie.legend(wedges, legend_labels,
+                             loc='lower center',
+                             bbox_to_anchor=(0.5, -0.2),
+                             ncol=2,
+                             fontsize=10,
+                             frameon=False)
+            
+            # Ajustar layout
+            plt.tight_layout()
+            
+            # Salvar página
+            pdf.savefig(fig_content, bbox_inches='tight')
+            plt.close(fig_content)
+            
+        print(f"Relatório Geral gerado com sucesso em: {output_path}")
+        
+    except Exception as e:
+        print(f"ERRO ao gerar relatório geral: {str(e)}")
+        if os.path.exists(output_path):
+            try:
+                os.remove(output_path)
+            except:
+                pass
+            
+# Adicione esta chamada após o loop que gera os outros relatórios
+generate_general_report(
+    file_path=file_path,
+    sheet_name=sheet_name,
+    output_dir=output_dir
+)
+
 # Gerar todos os relatórios
 for metric in metrics:
     generate_report(
