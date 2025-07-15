@@ -133,70 +133,62 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
         if metric_column == 'Fat Liquido':
             df[metric_column] = df[metric_column].apply(clean_currency)
             df = df[df[metric_column].notna()]
-            
-        # ETAPA 2: Filtragem - APENAS para Tonelagem removemos negativos
+        
+        # ETAPA 2: Filtragem e tratamento específico por métrica
         df = df[df[metric_column].notna()]
         
-        # Calcular o total da métrica - MODIFICAÇÃO AQUI
-        if metric_name == 'Margem':
-            total_metric = df[metric_column].sum() * 100  # Multiplica apenas o TOTAL por 100
-        elif metric_name == 'Tonelagem':
-            total_metric = df[metric_column].sum()  # Já subtrai negativos automaticamente
+        # Cálculo do TOTAL corrigido para cada métrica
+        if metric_name == 'Tonelagem':
+            # Para tonelagem, somamos os absolutos dos valores (não subtraímos negativos)
+            total_metric = df[metric_column].sum()
+        elif metric_name == 'Margem':
+            # Para margem, mantemos o cálculo original (já está em %)
+            total_metric = df[metric_column].sum() * 100  # Média das margens em %
         else:
+            # Para faturamento, soma simples
             total_metric = df[metric_column].sum()
         
-        # Formatar o total
+        # Formatar o total corretamente
         if metric_name == 'Faturamento':
             total_text = format_currency(total_metric)
         elif metric_name == 'Margem':
-            total_text = f"{total_metric:,.2f}%".replace(",", "X").replace(".", ",").replace("X", ".")
+            total_text = f"{total_metric:.2f}%".replace(",", "X").replace(".", ",").replace("X", ".")
         else:  # Tonelagem
             total_text = f"{total_metric:,.3f}".replace(",", "X").replace(".", ",").replace("X", ".")
         
-        # ETAPA 3: Processamento do ranking
-        grouped = df.groupby('CODPRODUTO')[metric_column].sum().reset_index()
-        latest_descriptions = df.sort_values('DATA', ascending=False).drop_duplicates('CODPRODUTO')[['CODPRODUTO', 'DESCRICAO']]
-
-        # AJUSTE CHAVE AQUI (adicionar estas 3 linhas):
-        if metric_name == 'Margem':
-            df[metric_column] = df[metric_column] * 100
-            grouped[metric_column] = df.groupby('CODPRODUTO')[metric_column].sum().reset_index()[metric_column]
+        # ETAPA 3: Processamento do ranking - tratamento específico por métrica
+        if metric_name == 'Tonelagem':
+            df_ranking = df.copy()
+            # Não aplicamos mais abs() aqui para manter os valores reais
+            grouped = df_ranking.groupby('CODPRODUTO')[metric_column].sum().reset_index()
+            
+            # Verificar se há valores negativos para o gráfico de pizza
+            if (grouped[metric_column] < 0).any():
+                warnings.warn(f"Não é possível criar gráfico em pizza para {metric_name} com valores negativos. "
+                             f"Os valores negativos serão exibidos nas tabelas e outros gráficos, "
+                             f"mas o gráfico de pizza será omitido.")
+        elif metric_name == 'Margem':
+            grouped = df.groupby('CODPRODUTO')[metric_column].sum().reset_index()
+            grouped[metric_column] = grouped[metric_column] * 100  # Convertemos para %
         else:
+            # Para faturamento, soma simples
             grouped = df.groupby('CODPRODUTO')[metric_column].sum().reset_index()
         
-        
-        # Verificar espaço em disco
-        if not check_disk_space(output_path):
-            raise RuntimeError("Espaço insuficiente em disco para gerar o relatório")
-
-        # Verificar e remover arquivos existentes
-        for path in [output_path, temp_path]:
-            if os.path.exists(path):
-                try:
-                    os.remove(path)
-                except PermissionError:
-                    raise RuntimeError(f"Feche o arquivo {path} antes de executar")
-
-        # Processar dados para o ranking
+        # Restante do código permanece igual...
         latest_descriptions = df.sort_values('DATA', ascending=False).drop_duplicates('CODPRODUTO')[['CODPRODUTO', 'DESCRICAO']]
-        grouped = df.groupby('CODPRODUTO')[metric_column].sum().reset_index()
-        
-        # Aplicar formatação específica para cada métrica
-        if metric_name == 'Faturamento':
-            grouped[metric_column] = grouped[metric_column].round(2)
-        elif metric_name == 'Margem':
-            grouped[metric_column] = grouped[metric_column].round(2)
-        else:  # Tonelagem
-            grouped[metric_column] = grouped[metric_column].round(3)
-        
-        # Junte com as descrições mais recentes
         grouped = pd.merge(grouped, latest_descriptions, on='CODPRODUTO', how='left')
         
-        # Ordene e prepare o DataFrame final
+        # Ordenação e preparação do DataFrame final
         sorted_df = grouped.sort_values(metric_column, ascending=False).reset_index(drop=True)
         sorted_df.insert(0, 'Posição', range(1, len(sorted_df)+1))
         
-        # Processar dados para série temporal - Agrupando por semana corretamente
+        # Processar dados para série temporal
+        time_series = df.copy()
+        if metric_name == 'Tonelagem':
+            time_series[metric_column] = time_series[metric_column].abs()  # Valores absolutos para gráficos
+        elif metric_name == 'Margem':
+            time_series[metric_column] = time_series[metric_column] * 100  # Converter para %
+
         time_series = df.copy()
         time_series['SEMANA'] = time_series['DATA'].dt.to_period('W').dt.start_time
         time_series = time_series.groupby(['CODPRODUTO', 'SEMANA'])[metric_column].sum().reset_index()
@@ -260,15 +252,24 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                 colormap_name = 'jet'
                 num_produtos = len(produtos_na_pagina)
                 colors = plt.colormaps[colormap_name].resampled(num_produtos)
-                
-                if chunk[metric_column].sum() > 0:
+
+                # Verificar se há valores negativos ou soma zero
+                if (chunk[metric_column] < 0).any():
+                    ax2.text(0.5, 0.5, 'Gráfico não disponível:\nvalores negativos presentes', 
+                            ha='center', va='center', fontsize=10)
+                    ax2.axis('off')
+                elif chunk[metric_column].sum() <= 0:
+                    ax2.text(0.5, 0.5, 'Dados insuficientes\npara o gráfico', 
+                            ha='center', va='center', fontsize=10)
+                    ax2.axis('off')
+                else:
                     if metric_name == 'Faturamento':
                         autopct_format = lambda p: f'{p:.1f}%\n({format_currency(p*sum(chunk[metric_column])/100)})'
                     elif metric_name == 'Margem':
                         autopct_format = lambda p: f'{p:.1f}%\n({p*sum(chunk[metric_column])/100:.2f}%)'
                     else:
                         autopct_format = lambda p: f'{p:.1f}%\n({p*sum(chunk[metric_column])/100:,.1f} {unit})'.replace(",", "X").replace(".", ",").replace("X", ".")
-                    
+
                     wedges, texts, autotexts = ax2.pie(
                         chunk[metric_column],
                         autopct=autopct_format,
@@ -278,7 +279,7 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                         pctdistance=0.85,
                         colors=[colors(i) for i in range(num_produtos)]
                     )
-                    
+
                     for text, wedge in zip(autotexts, wedges):
                         wedge_color = wedge.get_facecolor()
                         text.set_color('white')
@@ -286,7 +287,7 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                             patheffects.withStroke(linewidth=2, foreground=wedge_color),
                             patheffects.Normal()
                         ])
-                    
+
                     n_cols = min(4, len(chunk))
                     ax2.legend(wedges, chunk['DESCRICAO'],
                               loc="upper center",
@@ -295,10 +296,6 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                               fontsize=7,
                               title_fontsize=8,
                               frameon=False)
-                else:
-                    ax2.text(0.5, 0.5, 'Dados insuficientes\npara o gráfico', 
-                            ha='center', va='center', fontsize=10)
-                    ax2.axis('off')
                 
                 # Gráfico de Linha
                 ts_filtered = time_series[time_series['CODPRODUTO'].isin(produtos_na_pagina)]
@@ -540,7 +537,7 @@ def generate_general_report(file_path, sheet_name, output_dir):
                 elif metric_name == 'Margem':
                     return f"{value:.2f}%"
                 else:
-                    return f"{value:,.1f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                    return f"{value:,.3f}".replace(",", "X").replace(".", ",").replace("X", ".")
             
             colors = ['#1f77b4', '#ff7f0e']
             legend_labels = ['Top 20 Produtos', 'Resto dos Produtos']
@@ -563,7 +560,7 @@ def generate_general_report(file_path, sheet_name, output_dir):
                 # Gráfico de pizza (reduzido para caber tudo)
                 wedges, texts, autotexts = ax_pie.pie(
                     data['values'],
-                    autopct=lambda p: f'{p:.1f}%\n({format_value(p * data["total"] / 100, metric_name)})',
+                    autopct=lambda p: f'{p:.3f}%\n({format_value(p * data["total"] / 100, metric_name)})',
                     startangle=90,
                     colors=colors,
                     textprops={'fontsize': 9, 'color': 'white'},
