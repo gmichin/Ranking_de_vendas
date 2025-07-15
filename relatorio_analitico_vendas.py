@@ -18,6 +18,8 @@ MESES_PT = {
     9: 'Setembro', 10: 'Outubro', 11: 'Novembro', 12: 'Dezembro'
 }
 
+TOTAL_COLOR = '#2e8b57'
+
 def check_disk_space(path, min_space_gb=1):
     """Verifica se há espaço suficiente em disco"""
     usage = shutil.disk_usage(os.path.dirname(path))
@@ -134,16 +136,34 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
             
         # ETAPA 2: Filtragem - APENAS para Tonelagem removemos negativos
         df = df[df[metric_column].notna()]
-        if metric_name == 'Tonelagem':
-            df = df[df[metric_column] >= 0]
+        
+        # Calcular o total da métrica - MODIFICAÇÃO AQUI
+        if metric_name == 'Margem':
+            total_metric = df[metric_column].sum() * 100  # Multiplica apenas o TOTAL por 100
+        elif metric_name == 'Tonelagem':
+            total_metric = df[metric_column].sum()  # Já subtrai negativos automaticamente
+        else:
+            total_metric = df[metric_column].sum()
+        
+        # Formatar o total
+        if metric_name == 'Faturamento':
+            total_text = format_currency(total_metric)
+        elif metric_name == 'Margem':
+            total_text = f"{total_metric:,.2f}%".replace(",", "X").replace(".", ",").replace("X", ".")
+        else:  # Tonelagem
+            total_text = f"{total_metric:,.3f}".replace(",", "X").replace(".", ",").replace("X", ".")
         
         # ETAPA 3: Processamento do ranking
-        latest_descriptions = df.sort_values('DATA', ascending=False).drop_duplicates('CODPRODUTO')[['CODPRODUTO', 'DESCRICAO']]
         grouped = df.groupby('CODPRODUTO')[metric_column].sum().reset_index()
-        
-        # Converter Margem para porcentagem (se estava em decimal)
+        latest_descriptions = df.sort_values('DATA', ascending=False).drop_duplicates('CODPRODUTO')[['CODPRODUTO', 'DESCRICAO']]
+
+        # AJUSTE CHAVE AQUI (adicionar estas 3 linhas):
         if metric_name == 'Margem':
             df[metric_column] = df[metric_column] * 100
+            grouped[metric_column] = df.groupby('CODPRODUTO')[metric_column].sum().reset_index()[metric_column]
+        else:
+            grouped = df.groupby('CODPRODUTO')[metric_column].sum().reset_index()
+        
         
         # Verificar espaço em disco
         if not check_disk_space(output_path):
@@ -181,14 +201,16 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
         time_series['SEMANA'] = time_series['DATA'].dt.to_period('W').dt.start_time
         time_series = time_series.groupby(['CODPRODUTO', 'SEMANA'])[metric_column].sum().reset_index()
         
-        # Criar PDF temporário primeiro
+         # Criar PDF temporário primeiro
         with PdfPages(temp_path) as pdf:
-            # Página de título
+            # Página de título - MODIFICADA PARA INCLUIR O TOTAL
             fig_title = plt.figure(figsize=(11, 16))
             plt.text(0.5, 0.5, f"RELATÓRIO ANALÍTICO DE VENDAS - {metric_name.upper()}", 
-                     fontsize=24, ha='center', va='center', fontweight='bold')
+                    fontsize=24, ha='center', va='center', fontweight='bold')
             plt.text(0.5, 0.45, f"{nome_mes} {primeiro_ano}", 
-                     fontsize=18, ha='center', va='center', fontweight='normal')
+                    fontsize=18, ha='center', va='center', fontweight='normal')
+            plt.text(0.5, 0.4, f"{metric_name.upper()} (TOTAL): {total_text}", 
+                    fontsize=16, ha='center', va='center', fontweight='bold', color=TOTAL_COLOR)
             plt.axis('off')
             pdf.savefig(fig_title, bbox_inches='tight')
             plt.close(fig_title)
@@ -308,13 +330,14 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                         else:
                             label = f'{y:,.1f}'.replace(",", "X").replace(".", ",").replace("X", ".")
                         
+                        # Na função generate_report(), modificar a parte das anotações do gráfico de linhas:
                         annotation = ax3.annotate(label, 
-                                                xy=(x, y),
-                                                xytext=(0, 5),
-                                                textcoords='offset points',
-                                                ha='center', va='bottom',
-                                                fontsize=6,
-                                                color='white')
+                            xy=(x, y),
+                            xytext=(0, 5),
+                            textcoords='offset points',
+                            ha='center', va='bottom',
+                            fontsize=6,
+                            color="white")  # Alterado para verde
                         annotation.set_path_effects([
                             patheffects.withStroke(linewidth=2, foreground=line_color),
                             patheffects.Normal()
@@ -365,12 +388,12 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                         label = f'{height:,.1f}'.replace(",", "X").replace(".", ",").replace("X", ".")
                     
                     annotation = ax4.annotate(label,
-                                            xy=(bar.get_x() + bar.get_width() / 2, height),
-                                            xytext=(0, 3),
-                                            textcoords="offset points",
-                                            ha='center', va='bottom',
-                                            fontsize=8,
-                                            color='white')
+                        xy=(bar.get_x() + bar.get_width() / 2, height),
+                        xytext=(0, 3),
+                        textcoords="offset points",
+                        ha='center', va='bottom',
+                        fontsize=8,
+                        color="white") 
                     annotation.set_path_effects([
                         patheffects.withStroke(linewidth=2, foreground=bar_color),
                         patheffects.Normal()
@@ -491,9 +514,9 @@ def generate_general_report(file_path, sheet_name, output_dir):
             pdf.savefig(fig_title, bbox_inches='tight')
             plt.close(fig_title)
             
-            # Página com tabela e gráficos
+           # Página com tabela e gráficos
             fig_content = plt.figure(figsize=(11, 16))
-            gs = fig_content.add_gridspec(4, 1, height_ratios=[1, 1, 1, 1])
+            gs = fig_content.add_gridspec(4, 1, height_ratios=[1, 1, 1, 1], hspace=0.5)  # Aumentei o hspace
             
             # Tabela na primeira parte
             ax_table = fig_content.add_subplot(gs[0])
@@ -525,6 +548,19 @@ def generate_general_report(file_path, sheet_name, output_dir):
             for i, (metric_name, data) in enumerate(pie_data.items()):
                 ax_pie = fig_content.add_subplot(gs[i+1])
                 
+                # Ajuste crucial: criar espaço no topo antes de adicionar elementos
+                ax_pie.set_position([0.1, ax_pie.get_position().y0, 0.8, ax_pie.get_position().height * 0.85])
+                
+                # Título principal (preto) - posicionado mais acima
+                ax_pie.set_title(data['title'], fontsize=12, pad=25, y=1.08)
+                
+                # Total (verde) - posicionado entre o título e o gráfico
+                ax_pie.text(0.5, 1.02, f"Total: {format_value(data['total'], metric_name)}", 
+                           fontsize=11, ha='center', va='bottom', 
+                           color=TOTAL_COLOR, transform=ax_pie.transAxes,
+                           bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=3))
+                
+                # Gráfico de pizza (reduzido para caber tudo)
                 wedges, texts, autotexts = ax_pie.pie(
                     data['values'],
                     autopct=lambda p: f'{p:.1f}%\n({format_value(p * data["total"] / 100, metric_name)})',
@@ -532,7 +568,8 @@ def generate_general_report(file_path, sheet_name, output_dir):
                     colors=colors,
                     textprops={'fontsize': 9, 'color': 'white'},
                     wedgeprops={'linewidth': 0.5, 'edgecolor': 'white'},
-                    pctdistance=0.85
+                    pctdistance=0.85,
+                    radius=0.8  # Reduz o raio do gráfico para dar espaço
                 )
                 
                 for text, wedge in zip(autotexts, wedges):
@@ -542,10 +579,9 @@ def generate_general_report(file_path, sheet_name, output_dir):
                         patheffects.Normal()
                     ])
                 
-                ax_pie.set_title(f"{data['title']} - {nome_mes} {primeiro_ano}", fontsize=12, pad=10)
                 ax_pie.legend(wedges, legend_labels,
                              loc='lower center',
-                             bbox_to_anchor=(0.5, -0.2),
+                             bbox_to_anchor=(0.5, -0.25),  # Ajustei a posição da legenda
                              ncol=2,
                              fontsize=10,
                              frameon=False)
@@ -565,7 +601,7 @@ def generate_general_report(file_path, sheet_name, output_dir):
                 pass
 
 # Configuração principal
-file_path = r"C:\Users\win11\Documents\Andrey Enviou\Margem_250531 - wapp - V3.xlsx"
+file_path = r"C:\Users\win11\Downloads\Margem_250630 - FEC - wapp V4.xlsx"
 sheet_name = "Base (3,5%)"
 output_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
 items_per_page = 5
