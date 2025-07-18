@@ -1,4 +1,5 @@
 import warnings
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -498,22 +499,14 @@ def generate_general_report(file_path, sheet_name, output_dir):
             'Faturamento': prepare_pie_data('Fat Liquido', 'Faturamento'),
             'Margem': prepare_pie_data('Margem', 'Margem')
         }
-        
+       
         # Criar PDF
         with PdfPages(output_path) as pdf:
-            # Página de título
-            fig_title = plt.figure(figsize=(11, 16))
-            plt.text(0.5, 0.5, "RELATÓRIO ANALÍTICO DE VENDAS - GERAL", 
-                     fontsize=24, ha='center', va='center', fontweight='bold')
-            plt.text(0.5, 0.45, f"{nome_mes} {primeiro_ano}", 
-                     fontsize=18, ha='center', va='center', fontweight='normal')
-            plt.axis('off')
-            pdf.savefig(fig_title, bbox_inches='tight')
-            plt.close(fig_title)
+            # [Página de título permanece a mesma]
             
            # Página com tabela e gráficos
             fig_content = plt.figure(figsize=(11, 16))
-            gs = fig_content.add_gridspec(4, 1, height_ratios=[1, 1, 1, 1], hspace=0.5)  # Aumentei o hspace
+            gs = fig_content.add_gridspec(4, 1, height_ratios=[1, 1, 1, 1], hspace=0.5)
             
             # Tabela na primeira parte
             ax_table = fig_content.add_subplot(gs[0])
@@ -545,40 +538,56 @@ def generate_general_report(file_path, sheet_name, output_dir):
             for i, (metric_name, data) in enumerate(pie_data.items()):
                 ax_pie = fig_content.add_subplot(gs[i+1])
                 
-                # Ajuste crucial: criar espaço no topo antes de adicionar elementos
-                ax_pie.set_position([0.1, ax_pie.get_position().y0, 0.8, ax_pie.get_position().height * 0.85])
+                # Ajustar posição para dar mais espaço
+                ax_pie.set_position([0.1, ax_pie.get_position().y0, 0.8, ax_pie.get_position().height * 0.8])
                 
-                # Título principal (preto) - posicionado mais acima
+                # Título principal
                 ax_pie.set_title(data['title'], fontsize=12, pad=25, y=1.08)
                 
-                # Total (verde) - posicionado entre o título e o gráfico
+                # Total (verde)
                 ax_pie.text(0.5, 1.02, f"Total: {format_value(data['total'], metric_name)}", 
                            fontsize=11, ha='center', va='bottom', 
                            color=TOTAL_COLOR, transform=ax_pie.transAxes,
                            bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=3))
                 
-                # Gráfico de pizza (reduzido para caber tudo)
-                wedges, texts, autotexts = ax_pie.pie(
+                # Gráfico de pizza (sem autopct)
+                wedges, texts = ax_pie.pie(
                     data['values'],
-                    autopct=lambda p: f'{p:.3f}%\n({format_value(p * data["total"] / 100, metric_name)})',
                     startangle=90,
                     colors=colors,
-                    textprops={'fontsize': 9, 'color': 'white'},
                     wedgeprops={'linewidth': 0.5, 'edgecolor': 'white'},
-                    pctdistance=0.85,
-                    radius=0.8  # Reduz o raio do gráfico para dar espaço
+                    radius=0.8
                 )
                 
-                for text, wedge in zip(autotexts, wedges):
-                    text.set_color('white')
-                    text.set_path_effects([
-                        patheffects.withStroke(linewidth=2, foreground=wedge.get_facecolor()),
-                        patheffects.Normal()
-                    ])
+                # Adicionar os valores fora do gráfico
+                bbox_props = dict(boxstyle="round,pad=0.3", fc="white", ec="gray", lw=0.5, alpha=0.8)
+                kw = dict(arrowprops=dict(arrowstyle="-"), bbox=bbox_props, zorder=0, va="center")
                 
+                for j, (wedge, value) in enumerate(zip(wedges, data['values'])):
+                    ang = (wedge.theta2 - wedge.theta1)/2. + wedge.theta1
+                    y = np.sin(np.deg2rad(ang))
+                    x = np.cos(np.deg2rad(ang))
+                    
+                    # Calcular porcentagem
+                    percentage = 100 * value / data['total']
+                    formatted_value = format_value(value, metric_name)
+                    
+                    # Texto com porcentagem e valor
+                    text = f"{percentage:.1f}%\n({formatted_value})"
+                    
+                    # Posicionar fora do gráfico
+                    horizontalalignment = {-1: "right", 1: "left"}[int(np.sign(x))]
+                    connectionstyle = f"angle,angleA=0,angleB={ang}"
+                    kw["arrowprops"].update({"connectionstyle": connectionstyle})
+                    
+                    ax_pie.annotate(text, xy=(x, y), xytext=(1.3*np.sign(x), 1.3*y),
+                                   horizontalalignment=horizontalalignment,
+                                   fontsize=9, **kw)
+                
+                # Legenda
                 ax_pie.legend(wedges, legend_labels,
                              loc='lower center',
-                             bbox_to_anchor=(0.5, -0.25),  # Ajustei a posição da legenda
+                             bbox_to_anchor=(0.5, -0.3),
                              ncol=2,
                              fontsize=10,
                              frameon=False)
@@ -596,9 +605,9 @@ def generate_general_report(file_path, sheet_name, output_dir):
                 os.remove(output_path)
             except:
                 pass
-
+            
 # Configuração principal
-file_path = r"C:\Users\win11\Downloads\Margem_250630 - FEC - wapp V4.xlsx"
+file_path = r"C:\Users\win11\OneDrive\Documentos\Margens de fechamento\Margem_250630 - FEC - wapp V5.xlsx"
 sheet_name = "Base (3,5%)"
 output_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
 items_per_page = 5
