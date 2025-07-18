@@ -469,7 +469,6 @@ def generate_general_report(file_path, sheet_name, output_dir):
             ['Qtde Produtos', qtde_produtos]
         ]
         
-        # Preparar dados para os gráficos de pizza
         def prepare_pie_data(metric_column, metric_name):
             group_cols = ['CODPRODUTO']
             if 'DESCRICAO' in df.columns:
@@ -486,12 +485,14 @@ def generate_general_report(file_path, sheet_name, output_dir):
             
             total_top20 = top20[metric_column].sum()
             total_resto = resto[metric_column].sum()
+            resto_count = len(resto)
             
             return {
-                'labels': ['Top 20', 'Resto'],
+                'labels': ['Top 20 produtos', f'Outros {resto_count} produtos'],
                 'values': [total_top20, total_resto],
-                'title': f'Top 20 produtos vs Resto - {metric_name}',
-                'total': total_top20 + total_resto
+                'title': f'Top 20 produtos vs Outros {resto_count} produtos - {metric_name}',
+                'total': total_top20 + total_resto,
+                'resto_count': resto_count
             }
         
         pie_data = {
@@ -499,12 +500,20 @@ def generate_general_report(file_path, sheet_name, output_dir):
             'Faturamento': prepare_pie_data('Fat Liquido', 'Faturamento'),
             'Margem': prepare_pie_data('Margem', 'Margem')
         }
-       
+        
         # Criar PDF
         with PdfPages(output_path) as pdf:
-            # [Página de título permanece a mesma]
+            # Página de título
+            fig_title = plt.figure(figsize=(11, 16))
+            plt.text(0.5, 0.5, "RELATÓRIO ANALÍTICO DE VENDAS - GERAL", 
+                    fontsize=24, ha='center', va='center', fontweight='bold')
+            plt.text(0.5, 0.45, f"{nome_mes} {primeiro_ano}", 
+                    fontsize=18, ha='center', va='center', fontweight='normal')
+            plt.axis('off')
+            pdf.savefig(fig_title, bbox_inches='tight')
+            plt.close(fig_title)
             
-           # Página com tabela e gráficos
+            # Página com tabela e gráficos
             fig_content = plt.figure(figsize=(11, 16))
             gs = fig_content.add_gridspec(4, 1, height_ratios=[1, 1, 1, 1], hspace=0.5)
             
@@ -533,7 +542,6 @@ def generate_general_report(file_path, sheet_name, output_dir):
                     return f"{value:,.3f}".replace(",", "X").replace(".", ",").replace("X", ".")
             
             colors = ['#1f77b4', '#ff7f0e']
-            legend_labels = ['Top 20 Produtos', 'Resto dos Produtos']
             
             for i, (metric_name, data) in enumerate(pie_data.items()):
                 ax_pie = fig_content.add_subplot(gs[i+1])
@@ -584,8 +592,8 @@ def generate_general_report(file_path, sheet_name, output_dir):
                                    horizontalalignment=horizontalalignment,
                                    fontsize=9, **kw)
                 
-                # Legenda
-                ax_pie.legend(wedges, legend_labels,
+                # Legenda - usando os labels diretamente do data
+                ax_pie.legend(wedges, data['labels'],
                              loc='lower center',
                              bbox_to_anchor=(0.5, -0.3),
                              ncol=2,
@@ -607,7 +615,7 @@ def generate_general_report(file_path, sheet_name, output_dir):
                 pass
             
 # Configuração principal
-file_path = r"C:\Users\win11\OneDrive\Documentos\Margens de fechamento\Margem_250630 - FEC - wapp V5.xlsx"
+file_path = r"C:\Users\win11\OneDrive\Documentos\Margens de fechamento\Margem_250531 - wapp - V3.xlsx"
 sheet_name = "Base (3,5%)"
 output_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
 items_per_page = 5
