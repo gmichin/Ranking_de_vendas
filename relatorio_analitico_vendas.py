@@ -666,7 +666,7 @@ def generate_general_report(file_path, sheet_name, output_dir):
                 pass
             
 # Configuração principal
-file_path = r"C:\Users\win11\OneDrive\Documentos\Margens de fechamento\Margem_250531 - wapp - V3.xlsx"
+file_path = r"C:\Users\win11\OneDrive\Documentos\Margens de fechamento\Margem_250717 - wapp.xlsx"
 sheet_name = "Base (3,5%)"
 output_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
 items_per_page = 5
