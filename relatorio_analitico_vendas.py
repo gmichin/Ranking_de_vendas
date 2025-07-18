@@ -110,7 +110,7 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
     try:
         # Ler os dados primeiro para obter as datas
         df = pd.read_excel(file_path, sheet_name=sheet_name, header=8)[
-            ['CODPRODUTO', 'DESCRICAO', metric_column, 'DATA']]
+            ['CODPRODUTO', 'DESCRICAO', 'DATA', 'QTDE REAL', 'Fat Liquido', 'Lucro / Prej.']]
         
         # Converter DATA para datetime e obter mês/ano
         df['DATA'] = pd.to_datetime(df['DATA'])
@@ -123,7 +123,15 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
         # Criar diretório para os relatórios
         report_dir = create_report_directory(output_dir, nome_mes, primeiro_ano)
         
-        # Criar nome do arquivo com as variáveis
+        # Definir a coluna métrica correta
+        if metric_name == 'Tonelagem':
+            metric_column = 'QTDE REAL'
+        elif metric_name == 'Faturamento':
+            metric_column = 'Fat Liquido'
+        elif metric_name == 'Margem':
+            metric_column = 'Margem Calculada'
+        
+        # Criar nome do arquivo
         output_filename = f"Relatório Analítico de Vendas - {metric_name} - {nome_mes} {primeiro_ano} - {items_per_page} em {items_per_page}.pdf"
         output_path = os.path.join(report_dir, output_filename)
         temp_path = os.path.join(report_dir, f"temp_{output_filename}")
@@ -131,25 +139,37 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
         print(f"Gerando - {output_filename}")
         
         # ETAPA 1: Tratamento de valores monetários
-        if metric_column == 'Fat Liquido':
-            df[metric_column] = df[metric_column].apply(clean_currency)
-            df = df[df[metric_column].notna()]
+        if metric_name in ['Faturamento', 'Margem']:
+            df['Fat Liquido'] = df['Fat Liquido'].apply(clean_currency)
+            df['Lucro / Prej.'] = df['Lucro / Prej.'].apply(clean_currency)
+            # Remover linhas com valores NaN
+            df = df[df['Fat Liquido'].notna() & df['Lucro / Prej.'].notna()]
         
-        # ETAPA 2: Filtragem e tratamento específico por métrica
-        df = df[df[metric_column].notna()]
-        
-        # Cálculo do TOTAL corrigido para cada métrica
+        # ETAPA 2: Preparação específica por métrica
         if metric_name == 'Tonelagem':
-            # Para tonelagem, somamos os absolutos dos valores (não subtraímos negativos)
-            total_metric = df[metric_column].sum()
+            df = df[df['QTDE REAL'].notna()]
+        elif metric_name == 'Faturamento':
+            df = df[df['Fat Liquido'].notna()]
+            df['Fat Liquido'] = df['Fat Liquido'].astype(float)
         elif metric_name == 'Margem':
-            # Para margem, mantemos o cálculo original (já está em %)
-            total_metric = df[metric_column].sum() * 100  # Média das margens em %
-        else:
-            # Para faturamento, soma simples
-            total_metric = df[metric_column].sum()
+            # Calcular margem e zerar quando faturamento for negativo
+            df['Margem Calculada'] = np.where(
+                df['Fat Liquido'] <= 0, 0,
+                (df['Lucro / Prej.'] / df['Fat Liquido']) * 100
+            )
+            df = df[df['Margem Calculada'].notna()]
         
-        # Formatar o total corretamente
+        # Cálculo do TOTAL
+        if metric_name == 'Tonelagem':
+            total_metric = df['QTDE REAL'].sum()
+        elif metric_name == 'Faturamento':
+            total_metric = df['Fat Liquido'].sum()
+        elif metric_name == 'Margem':
+            total_lucro = df['Lucro / Prej.'].sum()
+            total_fat = df['Fat Liquido'].sum()
+            total_metric = 0 if total_fat <= 0 else (total_lucro / total_fat) * 100
+        
+        # Formatar o total
         if metric_name == 'Faturamento':
             total_text = format_currency(total_metric)
         elif metric_name == 'Margem':
@@ -157,46 +177,54 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
         else:  # Tonelagem
             total_text = f"{total_metric:,.3f}".replace(",", "X").replace(".", ",").replace("X", ".")
         
-        # ETAPA 3: Processamento do ranking - tratamento específico por métrica
+        # ETAPA 3: Processamento do ranking
         if metric_name == 'Tonelagem':
-            df_ranking = df.copy()
-            # Não aplicamos mais abs() aqui para manter os valores reais
-            grouped = df_ranking.groupby('CODPRODUTO')[metric_column].sum().reset_index()
-            
-            # Verificar se há valores negativos para o gráfico de pizza
-            if (grouped[metric_column] < 0).any():
-                warnings.warn(f"Não é possível criar gráfico em pizza para {metric_name} com valores negativos. "
-                             f"Os valores negativos serão exibidos nas tabelas e outros gráficos, "
-                             f"mas o gráfico de pizza será omitido.")
+            grouped = df.groupby('CODPRODUTO')['QTDE REAL'].sum().reset_index()
+            grouped.rename(columns={'QTDE REAL': metric_column}, inplace=True)
+        elif metric_name == 'Faturamento':
+            grouped = df.groupby('CODPRODUTO')['Fat Liquido'].sum().reset_index()
+            grouped.rename(columns={'Fat Liquido': metric_column}, inplace=True)
         elif metric_name == 'Margem':
-            grouped = df.groupby('CODPRODUTO')[metric_column].sum().reset_index()
-            grouped[metric_column] = grouped[metric_column] * 100  # Convertemos para %
-        else:
-            # Para faturamento, soma simples
-            grouped = df.groupby('CODPRODUTO')[metric_column].sum().reset_index()
+            grouped = df.groupby('CODPRODUTO').agg({
+                'Lucro / Prej.': 'sum',
+                'Fat Liquido': 'sum'
+            }).reset_index()
+            grouped[metric_column] = np.where(
+                grouped['Fat Liquido'] <= 0, 0,
+                (grouped['Lucro / Prej.'] / grouped['Fat Liquido']) * 100
+            )
         
-        # Restante do código permanece igual...
+        # Obter descrições mais recentes
         latest_descriptions = df.sort_values('DATA', ascending=False).drop_duplicates('CODPRODUTO')[['CODPRODUTO', 'DESCRICAO']]
         grouped = pd.merge(grouped, latest_descriptions, on='CODPRODUTO', how='left')
         
-        # Ordenação e preparação do DataFrame final
+        # Ordenar e numerar as posições
         sorted_df = grouped.sort_values(metric_column, ascending=False).reset_index(drop=True)
         sorted_df.insert(0, 'Posição', range(1, len(sorted_df)+1))
         
         # Processar dados para série temporal
         time_series = df.copy()
-        if metric_name == 'Tonelagem':
-            time_series[metric_column] = time_series[metric_column].abs()  # Valores absolutos para gráficos
-        elif metric_name == 'Margem':
-            time_series[metric_column] = time_series[metric_column] * 100  # Converter para %
-
-        time_series = df.copy()
         time_series['SEMANA'] = time_series['DATA'].dt.to_period('W').dt.start_time
-        time_series = time_series.groupby(['CODPRODUTO', 'SEMANA'])[metric_column].sum().reset_index()
         
-         # Criar PDF temporário primeiro
+        if metric_name == 'Tonelagem':
+            time_series = time_series.groupby(['CODPRODUTO', 'SEMANA'])['QTDE REAL'].sum().reset_index()
+            time_series.rename(columns={'QTDE REAL': metric_column}, inplace=True)
+        elif metric_name == 'Faturamento':
+            time_series = time_series.groupby(['CODPRODUTO', 'SEMANA'])['Fat Liquido'].sum().reset_index()
+            time_series.rename(columns={'Fat Liquido': metric_column}, inplace=True)
+        elif metric_name == 'Margem':
+            time_series = time_series.groupby(['CODPRODUTO', 'SEMANA']).agg({
+                'Lucro / Prej.': 'sum',
+                'Fat Liquido': 'sum'
+            }).reset_index()
+            time_series[metric_column] = np.where(
+                time_series['Fat Liquido'] <= 0, 0,
+                (time_series['Lucro / Prej.'] / time_series['Fat Liquido']) * 100
+            )
+        
+        # Criar PDF temporário
         with PdfPages(temp_path) as pdf:
-            # Página de título - MODIFICADA PARA INCLUIR O TOTAL
+            # Página de título
             fig_title = plt.figure(figsize=(11, 16))
             plt.text(0.5, 0.5, f"RELATÓRIO ANALÍTICO DE VENDAS - {metric_name.upper()}", 
                     fontsize=24, ha='center', va='center', fontweight='bold')
@@ -405,7 +433,7 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                 pdf.savefig(fig, dpi=150, bbox_inches='tight', pad_inches=0.5)
                 plt.close(fig)
                 
-        # Renomear arquivo temporário para final
+        # Renomear arquivo temporário
         os.rename(temp_path, output_path)
         print(f"Finalizado - {output_filename}")
 
@@ -425,7 +453,7 @@ def generate_general_report(file_path, sheet_name, output_dir):
         df = pd.read_excel(file_path, sheet_name=sheet_name, header=8)
         
         # Verificar se as colunas necessárias existem
-        required_columns = ['RAZAO', 'VENDEDOR', 'CODPRODUTO', 'DATA', 'QTDE REAL', 'Fat Liquido', 'Margem']
+        required_columns = ['RAZAO', 'VENDEDOR', 'CODPRODUTO', 'DATA', 'QTDE REAL', 'Fat Liquido', 'Lucro / Prej.']
         missing_columns = [col for col in required_columns if col not in df.columns]
         
         if missing_columns:
@@ -469,36 +497,59 @@ def generate_general_report(file_path, sheet_name, output_dir):
             ['Qtde Produtos', qtde_produtos]
         ]
         
-        def prepare_pie_data(metric_column, metric_name):
-            group_cols = ['CODPRODUTO']
-            if 'DESCRICAO' in df.columns:
-                group_cols.append('DESCRICAO')
-            
-            grouped = df.groupby('CODPRODUTO')[metric_column].sum().reset_index()
-            
-            if metric_name == 'Margem':
-                grouped[metric_column] = grouped[metric_column] * 100
+        def prepare_pie_data(metric_name):
+            if metric_name == 'Tonelagem':
+                metric_column = 'QTDE REAL'
+                grouped = df.groupby('CODPRODUTO')[metric_column].sum().reset_index()
+            elif metric_name == 'Faturamento':
+                metric_column = 'Fat Liquido'
+                grouped = df.groupby('CODPRODUTO')[metric_column].sum().reset_index()
+            elif metric_name == 'Margem':
+                # Para margem, agrupamos por produto somando Lucro e Faturamento
+                grouped = df.groupby('CODPRODUTO').agg({
+                    'Lucro / Prej.': 'sum',
+                    'Fat Liquido': 'sum'
+                }).reset_index()
+                grouped['Margem'] = (grouped['Lucro / Prej.'] / grouped['Fat Liquido']) * 100
+                grouped = grouped.replace([np.inf, -np.inf], 0)  # Tratar divisões por zero
+                metric_column = 'Margem'
             
             sorted_df = grouped.sort_values(metric_column, ascending=False).reset_index(drop=True)
             top20 = sorted_df.head(20)
             resto = sorted_df.iloc[20:]
             
-            total_top20 = top20[metric_column].sum()
-            total_resto = resto[metric_column].sum()
+            if metric_name == 'Margem':
+                # Para margem, precisamos somar Lucro e Faturamento separadamente
+                total_top20_lucro = top20['Lucro / Prej.'].sum()
+                total_top20_fat = top20['Fat Liquido'].sum()
+                total_top20 = (total_top20_lucro / total_top20_fat) * 100 if total_top20_fat != 0 else 0
+                
+                total_resto_lucro = resto['Lucro / Prej.'].sum()
+                total_resto_fat = resto['Fat Liquido'].sum()
+                total_resto = (total_resto_lucro / total_resto_fat) * 100 if total_resto_fat != 0 else 0
+                
+                total_geral_lucro = df['Lucro / Prej.'].sum()
+                total_geral_fat = df['Fat Liquido'].sum()
+                total_geral = (total_geral_lucro / total_geral_fat) * 100 if total_geral_fat != 0 else 0
+            else:
+                total_top20 = top20[metric_column].sum()
+                total_resto = resto[metric_column].sum()
+                total_geral = total_top20 + total_resto
+            
             resto_count = len(resto)
             
             return {
                 'labels': ['Top 20 produtos', f'Outros {resto_count} produtos'],
                 'values': [total_top20, total_resto],
                 'title': f'Top 20 produtos vs Outros {resto_count} produtos - {metric_name}',
-                'total': total_top20 + total_resto,
+                'total': total_geral,
                 'resto_count': resto_count
             }
         
         pie_data = {
-            'Tonelagem': prepare_pie_data('QTDE REAL', 'Tonelagem'),
-            'Faturamento': prepare_pie_data('Fat Liquido', 'Faturamento'),
-            'Margem': prepare_pie_data('Margem', 'Margem')
+            'Tonelagem': prepare_pie_data('Tonelagem'),
+            'Faturamento': prepare_pie_data('Faturamento'),
+            'Margem': prepare_pie_data('Margem')
         }
         
         # Criar PDF
