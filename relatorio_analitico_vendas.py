@@ -733,7 +733,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
         grouped = grouped.sort_values('TONELAGEM_KG', ascending=False)
         
         # Criar nome do arquivo
-        output_filename = f"Relatório Consolidado - {nome_mes} {primeiro_ano}.xlsx"
+        output_filename = f"Relatório Analítico de Vendas - {nome_mes} {primeiro_ano}.xlsx"
         output_path = os.path.join(report_dir, output_filename)
         
         print(f"Gerando arquivo Excel consolidado - {output_filename}")
@@ -876,7 +876,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
                 'font_name': 'Arial'
             })
             
-            worksheet.merge_range('A1:G1', f'RELATÓRIO CONSOLIDADO DE VENDAS - {nome_mes.upper()} {primeiro_ano}', title_format)
+            worksheet.merge_range('A1:G1', f'RELATÓRIO ANALÍTICO DE VENDAS - {nome_mes.upper()} {primeiro_ano}', title_format)
             
             # Definir altura da linha do cabeçalho
             worksheet.set_row(2, 20)
@@ -888,7 +888,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
                 'TONELAGEM (KG)',
                 'FATURAMENTO (R$)',
                 'MARGEM (%)',
-                'LUCRO (R$)',
+                'LUCRO/PREJ. (R$)',
                 'QTDE VENDAS'
             ]
             
