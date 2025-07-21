@@ -527,38 +527,56 @@ def generate_general_report(file_path, sheet_name, output_dir):
                 grouped['Margem'] = (grouped['Lucro / Prej.'] / grouped['Fat Liquido']) * 100
                 grouped = grouped.replace([np.inf, -np.inf], 0)  # Tratar divisões por zero
                 metric_column = 'Margem'
-            
+
             sorted_df = grouped.sort_values(metric_column, ascending=False).reset_index(drop=True)
             top20 = sorted_df.head(20)
             resto = sorted_df.iloc[20:]
-            
+
             if metric_name == 'Margem':
                 # Para margem, precisamos somar Lucro e Faturamento separadamente
                 total_top20_lucro = top20['Lucro / Prej.'].sum()
                 total_top20_fat = top20['Fat Liquido'].sum()
                 total_top20 = (total_top20_lucro / total_top20_fat) * 100 if total_top20_fat != 0 else 0
-                
+
                 total_resto_lucro = resto['Lucro / Prej.'].sum()
                 total_resto_fat = resto['Fat Liquido'].sum()
                 total_resto = (total_resto_lucro / total_resto_fat) * 100 if total_resto_fat != 0 else 0
-                
+
                 total_geral_lucro = df['Lucro / Prej.'].sum()
                 total_geral_fat = df['Fat Liquido'].sum()
                 total_geral = (total_geral_lucro / total_geral_fat) * 100 if total_geral_fat != 0 else 0
+
+                # Usamos o lucro absoluto para calcular as proporções do gráfico
+                lucro_total = abs(total_top20_lucro) + abs(total_resto_lucro)
+                if lucro_total > 0:
+                    perc_top20 = 100 * abs(total_top20_lucro) / lucro_total
+                    perc_resto = 100 * abs(total_resto_lucro) / lucro_total
+                else:
+                    perc_top20 = 0
+                    perc_resto = 0
+
+                return {
+                    'labels': ['Top 20 produtos', f'Outros {len(resto)} produtos'],
+                    'values': [abs(total_top20_lucro), abs(total_resto_lucro)],  # Usamos valor absoluto do lucro para tamanho
+                    'display_values': [total_top20, total_resto],  # Valores de margem (%) para mostrar
+                    'title': f'Top 20 produtos vs Outros {len(resto)} produtos - {metric_name}',
+                    'total': total_geral,
+                    'resto_count': len(resto),
+                    'is_margin': True  # Flag para indicar que é margem
+                }
             else:
                 total_top20 = top20[metric_column].sum()
                 total_resto = resto[metric_column].sum()
                 total_geral = total_top20 + total_resto
-            
-            resto_count = len(resto)
-            
-            return {
-                'labels': ['Top 20 produtos', f'Outros {resto_count} produtos'],
-                'values': [total_top20, total_resto],
-                'title': f'Top 20 produtos vs Outros {resto_count} produtos - {metric_name}',
-                'total': total_geral,
-                'resto_count': resto_count
-            }
+
+                return {
+                    'labels': ['Top 20 produtos', f'Outros {len(resto)} produtos'],
+                    'values': [total_top20, total_resto],
+                    'title': f'Top 20 produtos vs Outros {len(resto)} produtos - {metric_name}',
+                    'total': total_geral,
+                    'resto_count': len(resto),
+                    'is_margin': False
+                }
         
         pie_data = {
             'Tonelagem': prepare_pie_data('Tonelagem'),
@@ -631,20 +649,28 @@ def generate_general_report(file_path, sheet_name, output_dir):
                     wedgeprops={'linewidth': 0.5, 'edgecolor': 'white'},
                     radius=0.8
                 )
-                
+
                 # Adicionar os valores fora do gráfico
                 bbox_props = dict(boxstyle="round,pad=0.3", fc="white", ec="gray", lw=0.5, alpha=0.8)
                 kw = dict(arrowprops=dict(arrowstyle="-"), bbox=bbox_props, zorder=0, va="center")
-                
+
                 for j, (wedge, value) in enumerate(zip(wedges, data['values'])):
                     ang = (wedge.theta2 - wedge.theta1)/2. + wedge.theta1
                     y = np.sin(np.deg2rad(ang))
                     x = np.cos(np.deg2rad(ang))
-                    
-                    # Calcular porcentagem
-                    percentage = 100 * value / data['total']
-                    formatted_value = format_value(value, metric_name)
-                    
+
+                    # Calcular porcentagem baseada nos valores do gráfico
+                    total_pie = sum(data['values'])
+                    percentage = 100 * value / total_pie if total_pie > 0 else 0
+
+                    # Formatar o valor para exibição
+                    if data.get('is_margin', False):
+                        # Para margem, mostramos o valor percentual entre parênteses
+                        display_value = data['display_values'][j]
+                        formatted_value = f"{display_value:.2f}%"
+                    else:
+                        formatted_value = format_value(value, metric_name)
+
                     # Texto com porcentagem e valor
                     text = f"{percentage:.1f}%\n({formatted_value})"
                     
@@ -963,7 +989,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
                 pass
 
 # Configuração principal (mantida igual)
-file_path = r"C:\Users\win11\OneDrive\Documentos\Margens de fechamento\Margem_250531 - wapp - V3.xlsx"
+file_path = r"C:\Users\win11\OneDrive\Documentos\Margens de fechamento\Margem_250630 - FEC - wapp V5.xlsx"
 sheet_name = "Base (3,5%)"
 output_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
 items_per_page = 5
