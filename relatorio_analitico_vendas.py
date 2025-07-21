@@ -179,16 +179,30 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
         
         # ETAPA 3: Processamento do ranking
         if metric_name == 'Tonelagem':
-            grouped = df.groupby('CODPRODUTO')['QTDE REAL'].sum().reset_index()
-            grouped.rename(columns={'QTDE REAL': metric_column}, inplace=True)
+            grouped = df.groupby('CODPRODUTO').agg({
+                'QTDE REAL': 'sum',
+                'DATA': 'count'  # Conta o número de vendas por produto
+            }).reset_index()
+            grouped.rename(columns={
+                'QTDE REAL': metric_column,
+                'DATA': 'Qtde de vendas'
+            }, inplace=True)
         elif metric_name == 'Faturamento':
-            grouped = df.groupby('CODPRODUTO')['Fat Liquido'].sum().reset_index()
-            grouped.rename(columns={'Fat Liquido': metric_column}, inplace=True)
+            grouped = df.groupby('CODPRODUTO').agg({
+                'Fat Liquido': 'sum',
+                'DATA': 'count'  # Conta o número de vendas por produto
+            }).reset_index()
+            grouped.rename(columns={
+                'Fat Liquido': metric_column,
+                'DATA': 'Qtde de vendas'
+            }, inplace=True)
         elif metric_name == 'Margem':
             grouped = df.groupby('CODPRODUTO').agg({
                 'Lucro / Prej.': 'sum',
-                'Fat Liquido': 'sum'
+                'Fat Liquido': 'sum',
+                'DATA': 'count'  # Conta o número de vendas por produto
             }).reset_index()
+            grouped.rename(columns={'DATA': 'Qtde de vendas'}, inplace=True)
             grouped[metric_column] = np.where(
                 grouped['Fat Liquido'] <= 0, 0,
                 (grouped['Lucro / Prej.'] / grouped['Fat Liquido']) * 100
@@ -263,14 +277,14 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                 else:  # Tonelagem
                     display_values = display_values.apply(lambda x: f"{x:,.3f}".replace(",", "X").replace(".", ",").replace("X", "."))
                 
-                table_data = chunk[['Posição', 'CODPRODUTO', 'DESCRICAO']].copy()
+                table_data = chunk[['Posição', 'CODPRODUTO', 'DESCRICAO', 'Qtde de vendas']].copy()
                 table_data[metric_column] = display_values
                 table = ax1.table(
                     cellText=table_data.values,
-                    colLabels=['Posição', 'Código', 'Descrição', f'{metric_name} ({unit})'],
+                    colLabels=['Posição', 'Código', 'Descrição', 'Qtde de vendas', f'{metric_name} ({unit})'],
                     loc='center',
                     cellLoc='center',
-                    colWidths=[0.1, 0.1, 0.5, 0.3]
+                    colWidths=[0.1, 0.1, 0.4, 0.2, 0.2]
                 )
                 table.auto_set_font_size(False)
                 table.set_fontsize(8)
@@ -666,7 +680,7 @@ def generate_general_report(file_path, sheet_name, output_dir):
                 pass
             
 # Configuração principal
-file_path = r"C:\Users\win11\OneDrive\Documentos\Margens de fechamento\Margem_250717 - wapp.xlsx"
+file_path = r"C:\Users\win11\OneDrive\Documentos\Margens de fechamento\Margem_250531 - wapp - V3.xlsx"
 sheet_name = "Base (3,5%)"
 output_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
 items_per_page = 5
