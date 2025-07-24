@@ -97,7 +97,7 @@ def format_currency(value):
 
 def create_report_directory(output_dir, month_name, year):
     """Cria o diretório para os relatórios se não existir"""
-    dir_name = f"Relatório Analítico de Vendas - {month_name} {year}"
+    dir_name = f"Ranking de Vendas - {month_name} {year}"
     report_dir = os.path.join(output_dir, dir_name)
     
     if not os.path.exists(report_dir):
@@ -132,7 +132,7 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
             metric_column = 'Margem Calculada'
         
         # Criar nome do arquivo
-        output_filename = f"Relatório Analítico de Vendas - {metric_name} - {nome_mes} {primeiro_ano} - {items_per_page} em {items_per_page}.pdf"
+        output_filename = f"Ranking de Vendas - {metric_name} - {nome_mes} {primeiro_ano} - {items_per_page} em {items_per_page}.pdf"
         output_path = os.path.join(report_dir, output_filename)
         temp_path = os.path.join(report_dir, f"temp_{output_filename}")
 
@@ -240,7 +240,7 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
         with PdfPages(temp_path) as pdf:
             # Página de título
             fig_title = plt.figure(figsize=(11, 16))
-            plt.text(0.5, 0.5, f"RELATÓRIO ANALÍTICO DE VENDAS - {metric_name.upper()}", 
+            plt.text(0.5, 0.5, f"RANKING DE VENDAS - {metric_name.upper()}", 
                     fontsize=24, ha='center', va='center', fontweight='bold')
             plt.text(0.5, 0.45, f"{nome_mes} {primeiro_ano}", 
                     fontsize=18, ha='center', va='center', fontweight='normal')
@@ -483,7 +483,7 @@ def generate_general_report(file_path, sheet_name, output_dir):
         report_dir = create_report_directory(output_dir, nome_mes, primeiro_ano)
         
         # Criar nome do arquivo
-        output_filename = f"Relatório Analítico de Vendas - Geral - {nome_mes} {primeiro_ano}.pdf"
+        output_filename = f"Ranking de Vendas - Geral - {nome_mes} {primeiro_ano}.pdf"
         output_path = os.path.join(report_dir, output_filename)
         
         print(f"Gerando - {output_filename}")
@@ -588,7 +588,7 @@ def generate_general_report(file_path, sheet_name, output_dir):
         with PdfPages(output_path) as pdf:
             # Página de título
             fig_title = plt.figure(figsize=(11, 16))
-            plt.text(0.5, 0.5, "RELATÓRIO ANALÍTICO DE VENDAS - GERAL", 
+            plt.text(0.5, 0.5, "RANKING DE VENDAS - GERAL", 
                     fontsize=24, ha='center', va='center', fontweight='bold')
             plt.text(0.5, 0.45, f"{nome_mes} {primeiro_ano}", 
                     fontsize=18, ha='center', va='center', fontweight='normal')
@@ -707,289 +707,110 @@ def generate_general_report(file_path, sheet_name, output_dir):
 
 def generate_consolidated_excel(file_path, sheet_name, output_dir):
     """Gera um arquivo Excel consolidado com todas as métricas por produto"""
+    output_path = None
+    
     try:
-        # Ler os dados primeiro para obter as datas
+        # 1. Ler os dados do Excel incluindo a coluna QTDE
         df = pd.read_excel(file_path, sheet_name=sheet_name, header=8)[
-            ['CODPRODUTO', 'DESCRICAO', 'DATA', 'QTDE REAL', 'Fat Liquido', 'Lucro / Prej.']]
+            ['CODPRODUTO', 'DESCRICAO', 'DATA', 'QTDE', 'QTDE REAL', 'Fat Liquido', 'Lucro / Prej.']]
         
-        # Converter DATA para datetime e obter mês/ano
+        # 2. Calcular o peso unitário (QTDE REAL / QTDE)
+        df['PESO_UNITARIO'] = df['QTDE REAL'] / df['QTDE']
+        
+        # 3. Processar datas e criar caminho de saída
         df['DATA'] = pd.to_datetime(df['DATA'])
         primeiro_mes = df['DATA'].iloc[0].month
         primeiro_ano = df['DATA'].iloc[0].year
-        
-        # Obter nome do mês em português
         nome_mes = MESES_PT.get(primeiro_mes, f'Mês {primeiro_mes}')
-        
-        # Criar diretório para os relatórios
         report_dir = create_report_directory(output_dir, nome_mes, primeiro_ano)
-        
-        # Tratamento de valores monetários (incluindo negativos)
-        df['Fat Liquido'] = df['Fat Liquido'].apply(clean_currency)
-        df['Lucro / Prej.'] = df['Lucro / Prej.'].apply(clean_currency)
-        df = df[df['Fat Liquido'].notna() & df['Lucro / Prej.'].notna() & df['QTDE REAL'].notna()]
-        
-        # Obter descrições mais recentes
-        latest_descriptions = df.sort_values('DATA', ascending=False).drop_duplicates('CODPRODUTO')[['CODPRODUTO', 'DESCRICAO']]
-        
-        # Calcular todas as métricas por produto
-        grouped = df.groupby('CODPRODUTO').agg({
-            'QTDE REAL': ['sum', 'count'],  # Soma e contagem de vendas
-            'Fat Liquido': 'sum',
-            'Lucro / Prej.': 'sum'
-        }).reset_index()
-        
-        # Simplificar colunas multi-nível
-        grouped.columns = ['CODPRODUTO', 'TONELAGEM_KG', 'QTDE_VENDAS', 'FATURAMENTO_RS', 'LUCRO_RS']
-        
-        # Calcular margem com tratamento para valores negativos
-        grouped['MARGEM_PERC'] = np.where(
-            grouped['FATURAMENTO_RS'] == 0, 0,
-            (grouped['LUCRO_RS'] / grouped['FATURAMENTO_RS']) * 100
-        )
-        grouped['MARGEM_PERC'] = grouped['MARGEM_PERC'].round(2)
-        
-        # Adicionar descrições
-        grouped = pd.merge(grouped, latest_descriptions, on='CODPRODUTO', how='left')
-        
-        # Reordenar colunas
-        grouped = grouped[['CODPRODUTO', 'DESCRICAO', 'TONELAGEM_KG', 'FATURAMENTO_RS', 
-                          'MARGEM_PERC', 'LUCRO_RS', 'QTDE_VENDAS']]
-        
-        # Ordenar por tonelagem (poderia ser por qualquer outra métrica)
-        grouped = grouped.sort_values('TONELAGEM_KG', ascending=False)
-        
-        # Criar nome do arquivo
-        output_filename = f"Relatório Analítico de Vendas - {nome_mes} {primeiro_ano}.xlsx"
+        output_filename = f"Ranking de Vendas - {nome_mes} {primeiro_ano}.xlsx"
         output_path = os.path.join(report_dir, output_filename)
         
         print(f"Gerando arquivo Excel consolidado - {output_filename}")
-        
-        # Criar Excel com formatação
+
+        # 4. Limpeza e preparação dos dados
+        df['Fat Liquido'] = df['Fat Liquido'].apply(clean_currency)
+        df['Lucro / Prej.'] = df['Lucro / Prej.'].apply(clean_currency)
+        df = df.dropna(subset=['Fat Liquido', 'Lucro / Prej.', 'QTDE REAL', 'QTDE', 'PESO_UNITARIO'])
+
+        # 5. Obter descrições mais recentes
+        latest_descriptions = df.sort_values('DATA').drop_duplicates('CODPRODUTO', keep='last')[['CODPRODUTO', 'DESCRICAO']]
+
+        # 6. Removida a criação da coluna PESO_PV (não será mais usada)
+
+        # 7. Agregação dos dados
+        grouped = df.groupby('CODPRODUTO').agg(
+            TONELAGEM_KG=('QTDE REAL', 'sum'),
+            FATURAMENTO_RS=('Fat Liquido', 'sum'),
+            LUCRO_RS=('Lucro / Prej.', 'sum'),
+            QTDE_VENDAS=('DATA', 'count'),
+            QTDE_TOTAL=('QTDE', 'sum')
+        ).reset_index()
+
+        # 8. Calcular métricas adicionais
+        grouped['PESO_MEDIO'] = grouped['TONELAGEM_KG'] / grouped['QTDE_TOTAL']
+        grouped['MARGEM_PERC'] = np.where(
+            grouped['FATURAMENTO_RS'] == 0, 0,
+            (grouped['LUCRO_RS'] / grouped['FATURAMENTO_RS']) * 100
+        ).round(2)
+
+        # 9. Combinar todos os dados (sem a coluna PESO_PV)
+        final_df = pd.merge(
+            grouped, latest_descriptions, on='CODPRODUTO'
+        )[[
+            'CODPRODUTO', 'DESCRICAO', 'PESO_MEDIO', 'TONELAGEM_KG',
+            'FATURAMENTO_RS', 'MARGEM_PERC', 'LUCRO_RS', 'QTDE_VENDAS'
+        ]].sort_values('TONELAGEM_KG', ascending=False)
+
+        # 10. Gerar o arquivo Excel
         with pd.ExcelWriter(output_path, engine='xlsxwriter') as writer:
-            # Escrever os dados sem índice
-            grouped.to_excel(writer, sheet_name='Consolidado', index=False, startrow=2)
+            final_df.to_excel(writer, sheet_name='Consolidado', index=False, startrow=2)
             
             workbook = writer.book
             worksheet = writer.sheets['Consolidado']
             
-            # Definir formatos
+            # Configurar formatos
             header_format = workbook.add_format({
-                'bold': True,
-                'text_wrap': False,  # Desativar quebra de texto
-                'valign': 'top',
-                'fg_color': '#000000',  # Preto
-                'font_color': 'white',
-                'border': 1,
-                'align': 'center',
-                'valign': 'vcenter',
-                'font_size': 10,
-                'font_name': 'Arial'
+                'bold': True, 'text_wrap': False, 'valign': 'top',
+                'fg_color': '#000000', 'font_color': 'white',
+                'border': 1, 'align': 'center', 'font_size': 10
             })
             
-            # Formatos base sem bordas (para configuração de colunas)
-            currency_format = workbook.add_format({
-                'num_format': 'R$ #,##0.00;[Red]R$ -#,##0.00',
-                'align': 'right'
-            })
+            # Aplicar formatação às colunas (removida a coluna C que era PESO_PV)
+            worksheet.set_column('A:A', 12)  # CODPRODUTO
+            worksheet.set_column('B:B', 40)  # DESCRICAO
+            worksheet.set_column('C:C', 15, workbook.add_format({'num_format': '#,##0.000'}))  # PESO_MEDIO
+            worksheet.set_column('D:D', 15, workbook.add_format({'num_format': '#,##0.000'}))  # TONELAGEM
+            worksheet.set_column('E:E', 18, workbook.add_format({'num_format': 'R$ #,##0.00'}))  # FATURAMENTO
+            worksheet.set_column('F:F', 12, workbook.add_format({'num_format': '0.00%'}))  # MARGEM
+            worksheet.set_column('G:G', 15, workbook.add_format({'num_format': 'R$ #,##0.00'}))  # LUCRO
+            worksheet.set_column('H:H', 12, workbook.add_format({'num_format': '#,##0'}))  # QTDE_VENDAS
             
-            kg_format = workbook.add_format({
-                'num_format': '#,##0.000',
-                'align': 'right'
-            })
-            
-            percent_format = workbook.add_format({
-                'num_format': '0.00%;[Red]-0.00%',
-                'align': 'right'
-            })
-            
-            integer_format = workbook.add_format({
-                'num_format': '#,##0',
-                'align': 'center'
-            })
-            
-            text_format = workbook.add_format({
-                'align': 'left'
-            })
-            
-            # Formatos para linhas intercaladas
-            even_row_format = workbook.add_format({
-                'bg_color': '#F2F2F2',  # Cinza claro
-                'border': 1,
-                'align': 'left'
-            })
-            
-            odd_row_format = workbook.add_format({
-                'bg_color': '#FFFFFF',  # Branco
-                'border': 1,
-                'align': 'left'
-            })
-            
-            # Formatos específicos para cada tipo de dado (com cores intercaladas)
-            currency_even_format = workbook.add_format({
-                'num_format': 'R$ #,##0.00;[Red]R$ -#,##0.00',
-                'align': 'right',
-                'border': 1,
-                'bg_color': '#F2F2F2'
-            })
-            
-            currency_odd_format = workbook.add_format({
-                'num_format': 'R$ #,##0.00;[Red]R$ -#,##0.00',
-                'align': 'right',
-                'border': 1,
-                'bg_color': '#FFFFFF'
-            })
-            
-            kg_even_format = workbook.add_format({
-                'num_format': '#,##0.000',
-                'align': 'right',
-                'border': 1,
-                'bg_color': '#F2F2F2'
-            })
-            
-            kg_odd_format = workbook.add_format({
-                'num_format': '#,##0.000',
-                'align': 'right',
-                'border': 1,
-                'bg_color': '#FFFFFF'
-            })
-            
-            percent_even_format = workbook.add_format({
-                'num_format': '0.00%;[Red]-0.00%',
-                'align': 'right',
-                'border': 1,
-                'bg_color': '#F2F2F2'
-            })
-            
-            percent_odd_format = workbook.add_format({
-                'num_format': '0.00%;[Red]-0.00%',
-                'align': 'right',
-                'border': 1,
-                'bg_color': '#FFFFFF'
-            })
-            
-            integer_even_format = workbook.add_format({
-                'num_format': '#,##0',
-                'align': 'center',
-                'border': 1,
-                'bg_color': '#F2F2F2'
-            })
-            
-            integer_odd_format = workbook.add_format({
-                'num_format': '#,##0',
-                'align': 'center',
-                'border': 1,
-                'bg_color': '#FFFFFF'
-            })
-            
-            text_even_format = workbook.add_format({
-                'align': 'left',
-                'border': 1,
-                'bg_color': '#F2F2F2'
-            })
-            
-            text_odd_format = workbook.add_format({
-                'align': 'left',
-                'border': 1,
-                'bg_color': '#FFFFFF'
-            })
-            
-            # Escrever o título
-            title_format = workbook.add_format({
-                'bold': True,
-                'font_size': 14,
-                'align': 'center',
-                'valign': 'vcenter',
-                'font_name': 'Arial'
-            })
-            
-            worksheet.merge_range('A1:G1', f'RELATÓRIO ANALÍTICO DE VENDAS - {nome_mes.upper()} {primeiro_ano}', title_format)
-            
-            # Definir altura da linha do cabeçalho
-            worksheet.set_row(2, 20)
-            
-            # Definir cabeçalhos sem quebras de linha
+            # Escrever cabeçalhos (removido PESO P/V)
             headers = [
-                'CÓDIGO',
-                'DESCRIÇÃO',
-                'TONELAGEM (KG)',
-                'FATURAMENTO (R$)',
-                'MARGEM (%)',
-                'LUCRO/PREJ. (R$)',
-                'QTDE VENDAS'
+                'CÓDIGO', 'DESCRIÇÃO', 'PESO MÉDIO (KG)',
+                'TONELAGEM (KG)', 'FATURAMENTO (R$)', 'MARGEM (%)',
+                'LUCRO/PREJ. (R$)', 'QTDE VENDAS'
             ]
-            
-            # Escrever os cabeçalhos
             for col_num, value in enumerate(headers):
                 worksheet.write(2, col_num, value, header_format)
             
-            # Aplicar formatação às colunas
-            worksheet.set_column('A:A', 12, text_format)  # CODPRODUTO
-            worksheet.set_column('B:B', 40, text_format)  # DESCRICAO
-            worksheet.set_column('C:C', 15, kg_format)   # TONELAGEM
-            worksheet.set_column('D:D', 18, currency_format)  # FATURAMENTO
-            worksheet.set_column('E:E', 12, percent_format)  # MARGEM (%)
-            worksheet.set_column('F:F', 15, currency_format)  # LUCRO
-            worksheet.set_column('G:G', 12, integer_format)  # QTDE VENDAS
-            
-            # Aplicar formatação de linhas intercaladas apenas nas linhas com dados
-            for row_idx in range(len(grouped)):
-                row = row_idx + 3  # +3 porque os dados começam na linha 3
-                
-                for col_idx in range(7):  # 7 colunas (A-G)
-                    value = grouped.iloc[row_idx, col_idx]
-                    
-                    # Pular células vazias para não aplicar bordas
-                    if pd.isna(value):
-                        continue
-                    
-                    # Determinar o formato correto para cada tipo de célula
-                    if row_idx % 2 == 0:  # Linha par
-                        if col_idx == 3 or col_idx == 5:  # FATURAMENTO e LUCRO
-                            cell_format = currency_even_format
-                        elif col_idx == 4:  # MARGEM
-                            cell_format = percent_even_format
-                            value = value / 100  # Converter para decimal para formato %
-                        elif col_idx == 6:  # QTDE VENDAS
-                            cell_format = integer_even_format
-                        elif col_idx == 2:  # TONELAGEM
-                            cell_format = kg_even_format
-                        else:
-                            cell_format = text_even_format
-                    else:  # Linha ímpar
-                        if col_idx == 3 or col_idx == 5:  # FATURAMENTO e LUCRO
-                            cell_format = currency_odd_format
-                        elif col_idx == 4:  # MARGEM
-                            cell_format = percent_odd_format
-                            value = value / 100  # Converter para decimal para formato %
-                        elif col_idx == 6:  # QTDE VENDAS
-                            cell_format = integer_odd_format
-                        elif col_idx == 2:  # TONELAGEM
-                            cell_format = kg_odd_format
-                        else:
-                            cell_format = text_odd_format
-                    
-                    worksheet.write(row, col_idx, value, cell_format)
-            
-            # Definir o range exato da tabela
-            last_row = len(grouped) + 2
-            
-            # Configurações de layout
-            worksheet.fit_to_pages(1, 1)
-            worksheet.set_landscape()
+            # Configurações finais
             worksheet.freeze_panes(3, 0)
+            worksheet.set_landscape()
             
         print(f"Finalizado - {output_filename}")
         
     except Exception as e:
         print(f"ERRO ao gerar Excel consolidado: {str(e)}")
-        if os.path.exists(output_path):
+        if output_path and os.path.exists(output_path):
             try:
                 os.remove(output_path)
             except:
                 pass
 
 # Configuração principal (mantida igual)
-file_path = r"C:\Users\win11\OneDrive\Documentos\Margens de fechamento\Margem_250630 - FEC - wapp V5.xlsx"
+file_path = r"C:\Users\win11\OneDrive\Documentos\Margens de fechamento\Margem_250531 - wapp - V3.xlsx"
 sheet_name = "Base (3,5%)"
 output_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
 items_per_page = 5
