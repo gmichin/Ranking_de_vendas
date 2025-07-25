@@ -106,11 +106,44 @@ def create_report_directory(output_dir, month_name, year):
     return report_dir
 
 def generate_report(file_path, sheet_name, output_dir, metric_column, metric_name, unit, items_per_page=5):
-    """Gera um relatório PDF para uma métrica específica"""
+    """Gera um relatório PDF para uma métrica específica, agrupando produtos conforme definido"""
     try:
+        # 1. Definir os grupos de produtos (todos em maiúsculas)
+        product_groups = {
+            'BARRIGA': [1833, 1639, 1544, 1674, 1863, 1845, 1385],
+            'BUCHO': [1567, 1816, 1856, 1480, 1527],
+            'CARRE': [1817, 1464, 1533, 1221, 1177, 917, 1689],
+            'COSTELA BOV': [1768, 1825],
+            'COSTELA INT. SUINA': [1879, 1517, 1179, 1416, 1760, 1758, 1829],
+            'COSTELA SALGADA': [1446, 755, 848, 1433, 1095],
+            'FIGADO': [1818, 1454, 1528],
+            'FILÉ DE PEITO DE FRANGO': [1632, 1386],
+            'LAGARTO': [1849, 1396],
+            'CALABRESA SADIA': [1339, 807, 1848],
+            'LÍNGUA SALGADA': [817, 849, 1430],
+            'LOMBO SALGADO': [846, 878, 1432],
+            'MASC. ORELHA SALGADA': [1426, 1447, 850, 746],
+            'MOCOTÓ': [1539, 1675, 1850, 1827, 1821, 1853, 1723, 1843, 1534, 1509, 1601],
+            'PATINHO': [1805, 1874],
+            'PÉ SALGADA': [1427, 836, 852, 1450],
+            'PEITO BOV': [1815, 1875, 1789],
+            'PONTA SALGADA': [1425, 750],
+            'RABO BOV': [1828, 1839, 1876, 1861, 1116, 1705],
+            'RABO SUINO SALGADO': [851, 1429, 748]
+        }
+        
+        # Inverter o dicionário para mapear código para nome do grupo
+        code_to_group = {}
+        for group_name, codes in product_groups.items():
+            for code in codes:
+                code_to_group[code] = group_name
+
         # Ler os dados primeiro para obter as datas
         df = pd.read_excel(file_path, sheet_name=sheet_name, header=8)[
             ['CODPRODUTO', 'DESCRICAO', 'DATA', 'QTDE REAL', 'Fat Liquido', 'Lucro / Prej.']]
+        
+        # Adicionar coluna de grupo ao DataFrame
+        df['GRUPO'] = df['CODPRODUTO'].map(code_to_group)
         
         # Converter DATA para datetime e obter mês/ano
         df['DATA'] = pd.to_datetime(df['DATA'])
@@ -159,6 +192,90 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
             )
             df = df[df['Margem Calculada'].notna()]
         
+        # Dividir os dados em produtos agrupados e individuais
+        grouped_df = df[df['GRUPO'].notna()].copy()
+        individual_df = df[df['GRUPO'].isna()].copy()
+        
+        # ETAPA 3: Processamento do ranking para produtos individuais
+        if metric_name == 'Tonelagem':
+            individual_grouped = individual_df.groupby('CODPRODUTO').agg({
+                'QTDE REAL': 'sum',
+                'DATA': 'count'  # Conta o número de vendas por produto
+            }).reset_index()
+            individual_grouped.rename(columns={
+                'QTDE REAL': metric_column,
+                'DATA': 'Qtde de vendas'
+            }, inplace=True)
+        elif metric_name == 'Faturamento':
+            individual_grouped = individual_df.groupby('CODPRODUTO').agg({
+                'Fat Liquido': 'sum',
+                'DATA': 'count'  # Conta o número de vendas por produto
+            }).reset_index()
+            individual_grouped.rename(columns={
+                'Fat Liquido': metric_column,
+                'DATA': 'Qtde de vendas'
+            }, inplace=True)
+        elif metric_name == 'Margem':
+            individual_grouped = individual_df.groupby('CODPRODUTO').agg({
+                'Lucro / Prej.': 'sum',
+                'Fat Liquido': 'sum',
+                'DATA': 'count'  # Conta o número de vendas por produto
+            }).reset_index()
+            individual_grouped.rename(columns={'DATA': 'Qtde de vendas'}, inplace=True)
+            individual_grouped[metric_column] = np.where(
+                individual_grouped['Fat Liquido'] <= 0, 0,
+                (individual_grouped['Lucro / Prej.'] / individual_grouped['Fat Liquido']) * 100
+            )
+        
+        # ETAPA 4: Processamento do ranking para grupos de produtos
+        if metric_name == 'Tonelagem':
+            group_aggregated = grouped_df.groupby('GRUPO').agg({
+                'QTDE REAL': 'sum',
+                'DATA': 'count'  # Conta o número de vendas por grupo
+            }).reset_index()
+            group_aggregated.rename(columns={
+                'QTDE REAL': metric_column,
+                'DATA': 'Qtde de vendas'
+            }, inplace=True)
+        elif metric_name == 'Faturamento':
+            group_aggregated = grouped_df.groupby('GRUPO').agg({
+                'Fat Liquido': 'sum',
+                'DATA': 'count'  # Conta o número de vendas por grupo
+            }).reset_index()
+            group_aggregated.rename(columns={
+                'Fat Liquido': metric_column,
+                'DATA': 'Qtde de vendas'
+            }, inplace=True)
+        elif metric_name == 'Margem':
+            group_aggregated = grouped_df.groupby('GRUPO').agg({
+                'Lucro / Prej.': 'sum',
+                'Fat Liquido': 'sum',
+                'DATA': 'count'  # Conta o número de vendas por grupo
+            }).reset_index()
+            group_aggregated.rename(columns={'DATA': 'Qtde de vendas'}, inplace=True)
+            group_aggregated[metric_column] = np.where(
+                group_aggregated['Fat Liquido'] <= 0, 0,
+                (group_aggregated['Lucro / Prej.'] / group_aggregated['Fat Liquido']) * 100
+            )
+        
+        # Adicionar colunas para consistência nos grupos
+        group_aggregated['CODPRODUTO'] = "VÁRIOS"
+        group_aggregated['DESCRICAO'] = group_aggregated['GRUPO'].str.upper()
+        
+        # Obter descrições mais recentes para produtos individuais
+        latest_descriptions = df.sort_values('DATA', ascending=False).drop_duplicates('CODPRODUTO')[['CODPRODUTO', 'DESCRICAO']]
+        individual_grouped = pd.merge(individual_grouped, latest_descriptions, on='CODPRODUTO', how='left')
+        
+        # Combinar dados de grupos e produtos individuais
+        combined_df = pd.concat([
+            group_aggregated[['CODPRODUTO', 'DESCRICAO', metric_column, 'Qtde de vendas']],
+            individual_grouped[['CODPRODUTO', 'DESCRICAO', metric_column, 'Qtde de vendas']]
+        ], ignore_index=True)
+        
+        # Ordenar e numerar as posições
+        sorted_df = combined_df.sort_values(metric_column, ascending=False).reset_index(drop=True)
+        sorted_df.insert(0, 'Posição', range(1, len(sorted_df)+1))
+        
         # Cálculo do TOTAL
         if metric_name == 'Tonelagem':
             total_metric = df['QTDE REAL'].sum()
@@ -177,48 +294,15 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
         else:  # Tonelagem
             total_text = f"{total_metric:,.3f}".replace(",", "X").replace(".", ",").replace("X", ".")
         
-        # ETAPA 3: Processamento do ranking
-        if metric_name == 'Tonelagem':
-            grouped = df.groupby('CODPRODUTO').agg({
-                'QTDE REAL': 'sum',
-                'DATA': 'count'  # Conta o número de vendas por produto
-            }).reset_index()
-            grouped.rename(columns={
-                'QTDE REAL': metric_column,
-                'DATA': 'Qtde de vendas'
-            }, inplace=True)
-        elif metric_name == 'Faturamento':
-            grouped = df.groupby('CODPRODUTO').agg({
-                'Fat Liquido': 'sum',
-                'DATA': 'count'  # Conta o número de vendas por produto
-            }).reset_index()
-            grouped.rename(columns={
-                'Fat Liquido': metric_column,
-                'DATA': 'Qtde de vendas'
-            }, inplace=True)
-        elif metric_name == 'Margem':
-            grouped = df.groupby('CODPRODUTO').agg({
-                'Lucro / Prej.': 'sum',
-                'Fat Liquido': 'sum',
-                'DATA': 'count'  # Conta o número de vendas por produto
-            }).reset_index()
-            grouped.rename(columns={'DATA': 'Qtde de vendas'}, inplace=True)
-            grouped[metric_column] = np.where(
-                grouped['Fat Liquido'] <= 0, 0,
-                (grouped['Lucro / Prej.'] / grouped['Fat Liquido']) * 100
-            )
-        
-        # Obter descrições mais recentes
-        latest_descriptions = df.sort_values('DATA', ascending=False).drop_duplicates('CODPRODUTO')[['CODPRODUTO', 'DESCRICAO']]
-        grouped = pd.merge(grouped, latest_descriptions, on='CODPRODUTO', how='left')
-        
-        # Ordenar e numerar as posições
-        sorted_df = grouped.sort_values(metric_column, ascending=False).reset_index(drop=True)
-        sorted_df.insert(0, 'Posição', range(1, len(sorted_df)+1))
-        
-        # Processar dados para série temporal
+        # Processar dados para série temporal (agora considerando grupos)
         time_series = df.copy()
         time_series['SEMANA'] = time_series['DATA'].dt.to_period('W').dt.start_time
+        
+        # Para produtos em grupos, substituir CODPRODUTO pelo nome do grupo
+        time_series['CODPRODUTO'] = time_series.apply(
+            lambda row: row['GRUPO'] if pd.notna(row['GRUPO']) else row['CODPRODUTO'], 
+            axis=1
+        )
         
         if metric_name == 'Tonelagem':
             time_series = time_series.groupby(['CODPRODUTO', 'SEMANA'])['QTDE REAL'].sum().reset_index()
@@ -236,9 +320,15 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                 (time_series['Lucro / Prej.'] / time_series['Fat Liquido']) * 100
             )
         
+        # Obter descrições mais recentes (agora incluindo grupos)
+        latest_descriptions_combined = pd.concat([
+            group_aggregated[['CODPRODUTO', 'DESCRICAO']],
+            latest_descriptions
+        ]).drop_duplicates('CODPRODUTO')
+        
         # Criar PDF temporário
         with PdfPages(temp_path) as pdf:
-            # Página de título
+            # Página de título (mantida igual)
             fig_title = plt.figure(figsize=(11, 16))
             plt.text(0.5, 0.5, f"RANKING DE VENDAS - {metric_name.upper()}", 
                     fontsize=24, ha='center', va='center', fontweight='bold')
@@ -250,7 +340,7 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
             pdf.savefig(fig_title, bbox_inches='tight')
             plt.close(fig_title)
             
-            # Páginas de conteúdo
+            # Páginas de conteúdo (mantidas iguais, mas agora trabalhando com os dados combinados)
             for i in range(0, len(sorted_df), items_per_page):
                 chunk = sorted_df.iloc[i:i+items_per_page]
                 produtos_na_pagina = chunk['CODPRODUTO'].tolist()
@@ -342,7 +432,7 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                 
                 # Gráfico de Linha
                 ts_filtered = time_series[time_series['CODPRODUTO'].isin(produtos_na_pagina)]
-                ts_filtered = pd.merge(ts_filtered, latest_descriptions, on='CODPRODUTO', how='left')
+                ts_filtered = pd.merge(ts_filtered, latest_descriptions_combined, on='CODPRODUTO', how='left')
                 
                 ax3.set_title('Evolução Temporal (por semana)', fontsize=10, pad=10)
                 ax3.set_ylabel(f'{metric_name} ({unit})', fontsize=8)
@@ -370,14 +460,13 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                         else:
                             label = f'{y:,.1f}'.replace(",", "X").replace(".", ",").replace("X", ".")
                         
-                        # Na função generate_report(), modificar a parte das anotações do gráfico de linhas:
                         annotation = ax3.annotate(label, 
                             xy=(x, y),
                             xytext=(0, 5),
                             textcoords='offset points',
                             ha='center', va='bottom',
                             fontsize=6,
-                            color="white")  # Alterado para verde
+                            color="white")
                         annotation.set_path_effects([
                             patheffects.withStroke(linewidth=2, foreground=line_color),
                             patheffects.Normal()
@@ -706,7 +795,7 @@ def generate_general_report(file_path, sheet_name, output_dir):
                 pass
 
 def generate_consolidated_excel(file_path, sheet_name, output_dir):
-    """Gera um arquivo Excel consolidado com todas as métricas por produto"""
+    """Gera um arquivo Excel consolidado com todas as métricas por produto e por grupos especiais"""
     output_path = None
     
     try:
@@ -714,10 +803,43 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
         df = pd.read_excel(file_path, sheet_name=sheet_name, header=8)[
             ['CODPRODUTO', 'DESCRICAO', 'DATA', 'QTDE', 'QTDE REAL', 'Fat Liquido', 'Lucro / Prej.']]
         
-        # 2. Calcular o peso unitário (QTDE REAL / QTDE)
+        # 2. Definir os grupos de produtos (todos em maiúsculas)
+        product_groups = {
+            'BARRIGA': [1833, 1639, 1544, 1674, 1863, 1845, 1385],
+            'BUCHO': [1567, 1816, 1856, 1480, 1527],
+            'CARRE': [1817, 1464, 1533, 1221, 1177, 917, 1689],
+            'COSTELA BOV': [1768, 1825],
+            'COSTELA INT. SUINA': [1879, 1517, 1179, 1416, 1760, 1758, 1829],
+            'COSTELA SALGADA': [1446, 755, 848, 1433, 1095],
+            'FIGADO': [1818, 1454, 1528],
+            'FILÉ DE PEITO DE FRANGO': [1632, 1386],
+            'LAGARTO': [1849, 1396],
+            'CALABRESA SADIA': [1339, 807, 1848],
+            'LÍNGUA SALGADA': [817, 849, 1430],
+            'LOMBO SALGADO': [846, 878, 1432],
+            'MASC. ORELHA SALGADA': [1426, 1447, 850, 746],
+            'MOCOTÓ': [1539, 1675, 1850, 1827, 1821, 1853, 1723, 1843, 1534, 1509, 1601],
+            'PATINHO': [1805, 1874],
+            'PÉ SALGADO': [1427, 836, 852, 1450],
+            'PEITO BOV': [1815, 1875, 1789],
+            'PONTA SALGADA': [1425, 750],
+            'RABO BOV': [1828, 1839, 1876, 1861, 1116, 1705],
+            'RABO SUINO SALGADO': [851, 1429, 748]
+        }
+        
+        # Inverter o dicionário para mapear código para nome do grupo
+        code_to_group = {}
+        for group_name, codes in product_groups.items():
+            for code in codes:
+                code_to_group[code] = group_name
+        
+        # 3. Adicionar coluna de grupo ao DataFrame
+        df['GRUPO'] = df['CODPRODUTO'].map(code_to_group)
+        
+        # 4. Calcular o peso unitário (QTDE REAL / QTDE)
         df['PESO_UNITARIO'] = df['QTDE REAL'] / df['QTDE']
         
-        # 3. Processar datas e criar caminho de saída
+        # 5. Processar datas e criar caminho de saída
         df['DATA'] = pd.to_datetime(df['DATA'])
         primeiro_mes = df['DATA'].iloc[0].month
         primeiro_ano = df['DATA'].iloc[0].year
@@ -728,41 +850,87 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
         
         print(f"Gerando arquivo Excel consolidado - {output_filename}")
 
-        # 4. Limpeza e preparação dos dados
+        # 6. Limpeza e preparação dos dados
         df['Fat Liquido'] = df['Fat Liquido'].apply(clean_currency)
         df['Lucro / Prej.'] = df['Lucro / Prej.'].apply(clean_currency)
         df = df.dropna(subset=['Fat Liquido', 'Lucro / Prej.', 'QTDE REAL', 'QTDE', 'PESO_UNITARIO'])
 
-        # 5. Obter descrições mais recentes
+        # 7. Obter descrições mais recentes para produtos individuais
         latest_descriptions = df.sort_values('DATA').drop_duplicates('CODPRODUTO', keep='last')[['CODPRODUTO', 'DESCRICAO']]
 
-        # 6. Removida a criação da coluna PESO_PV (não será mais usada)
-
-        # 7. Agregação dos dados
-        grouped = df.groupby('CODPRODUTO').agg(
+        # 8. Criar DataFrames separados para produtos agrupados e individuais
+        # DataFrame para produtos em grupos
+        grouped_df = df[df['GRUPO'].notna()].copy()
+        
+        # DataFrame para produtos individuais (não estão em nenhum grupo)
+        individual_df = df[df['GRUPO'].isna()].copy()
+        
+        # 9. Agregar dados para os grupos
+        group_aggregated = grouped_df.groupby('GRUPO').agg(
             TONELAGEM_KG=('QTDE REAL', 'sum'),
             FATURAMENTO_RS=('Fat Liquido', 'sum'),
             LUCRO_RS=('Lucro / Prej.', 'sum'),
             QTDE_VENDAS=('DATA', 'count'),
             QTDE_TOTAL=('QTDE', 'sum')
         ).reset_index()
-
-        # 8. Calcular métricas adicionais
-        grouped['PESO_MEDIO'] = grouped['TONELAGEM_KG'] / grouped['QTDE_TOTAL']
-        grouped['MARGEM_PERC'] = np.where(
-            grouped['FATURAMENTO_RS'] == 0, 0,
-            (grouped['LUCRO_RS'] / grouped['FATURAMENTO_RS']) * 100
+        
+        # Calcular métricas para os grupos
+        group_aggregated['PESO_MEDIO'] = group_aggregated['TONELAGEM_KG'] / group_aggregated['QTDE_TOTAL']
+        
+        group_aggregated['MARGEM_PERC'] = np.where(
+            group_aggregated['FATURAMENTO_RS'] == 0, 0,
+            (group_aggregated['LUCRO_RS'] / group_aggregated['FATURAMENTO_RS']) * 100
         ).round(2)
-
-        # 9. Combinar todos os dados (sem a coluna PESO_PV)
-        final_df = pd.merge(
-            grouped, latest_descriptions, on='CODPRODUTO'
-        )[[
-            'CODPRODUTO', 'DESCRICAO', 'PESO_MEDIO', 'TONELAGEM_KG',
-            'FATURAMENTO_RS', 'MARGEM_PERC', 'LUCRO_RS', 'QTDE_VENDAS'
-        ]].sort_values('TONELAGEM_KG', ascending=False)
-
-        # 10. Gerar o arquivo Excel
+        
+        # Adicionar colunas para consistência
+        group_aggregated['CODPRODUTO'] = "VÁRIOS PROD."
+        group_aggregated['DESCRICAO'] = group_aggregated['GRUPO'].str.upper()
+        
+        # 10. Agregar dados para produtos individuais
+        individual_aggregated = individual_df.groupby('CODPRODUTO').agg(
+            TONELAGEM_KG=('QTDE REAL', 'sum'),
+            FATURAMENTO_RS=('Fat Liquido', 'sum'),
+            LUCRO_RS=('Lucro / Prej.', 'sum'),
+            QTDE_VENDAS=('DATA', 'count'),
+            QTDE_TOTAL=('QTDE', 'sum')
+        ).reset_index()
+        
+        # Calcular métricas para produtos individuais
+        individual_aggregated['PESO_MEDIO'] = individual_aggregated['TONELAGEM_KG'] / individual_aggregated['QTDE_TOTAL']
+        
+        individual_aggregated['MARGEM_PERC'] = np.where(
+            individual_aggregated['FATURAMENTO_RS'] == 0, 0,
+            (individual_aggregated['LUCRO_RS'] / individual_aggregated['FATURAMENTO_RS']) * 100
+        ).round(2)
+        
+        # Adicionar descrições aos produtos individuais (em maiúsculas)
+        individual_aggregated = pd.merge(
+            individual_aggregated, 
+            latest_descriptions, 
+            on='CODPRODUTO', 
+            how='left'
+        )
+        individual_aggregated['DESCRICAO'] = individual_aggregated['DESCRICAO'].str.upper()
+        
+        # 11. Combinar todos os dados
+        final_df = pd.concat([
+            group_aggregated[[
+                'CODPRODUTO', 'DESCRICAO', 'PESO_MEDIO', 'TONELAGEM_KG',
+                'FATURAMENTO_RS', 'MARGEM_PERC', 'LUCRO_RS', 'QTDE_VENDAS'
+            ]],
+            individual_aggregated[[
+                'CODPRODUTO', 'DESCRICAO', 'PESO_MEDIO', 'TONELAGEM_KG',
+                'FATURAMENTO_RS', 'MARGEM_PERC', 'LUCRO_RS', 'QTDE_VENDAS'
+            ]]
+        ], ignore_index=True)
+        
+        # Ordenar por tonelagem decrescente
+        final_df = final_df.sort_values('TONELAGEM_KG', ascending=False)
+        
+        # 12. Converter a margem para formato decimal (dividir por 100)
+        final_df['MARGEM_PERC'] = final_df['MARGEM_PERC'] / 100
+        
+        # 13. Gerar o arquivo Excel
         with pd.ExcelWriter(output_path, engine='xlsxwriter') as writer:
             final_df.to_excel(writer, sheet_name='Consolidado', index=False, startrow=2)
             
@@ -776,17 +944,20 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
                 'border': 1, 'align': 'center', 'font_size': 10
             })
             
-            # Aplicar formatação às colunas (removida a coluna C que era PESO_PV)
+            # Formato para porcentagem (ajustado para mostrar 2 decimais)
+            percent_format = workbook.add_format({'num_format': '0.00%'})
+            
+            # Aplicar formatação às colunas
             worksheet.set_column('A:A', 12)  # CODPRODUTO
             worksheet.set_column('B:B', 40)  # DESCRICAO
             worksheet.set_column('C:C', 15, workbook.add_format({'num_format': '#,##0.000'}))  # PESO_MEDIO
             worksheet.set_column('D:D', 15, workbook.add_format({'num_format': '#,##0.000'}))  # TONELAGEM
             worksheet.set_column('E:E', 18, workbook.add_format({'num_format': 'R$ #,##0.00'}))  # FATURAMENTO
-            worksheet.set_column('F:F', 12, workbook.add_format({'num_format': '0.00%'}))  # MARGEM
+            worksheet.set_column('F:F', 12, percent_format)  # MARGEM (formatado como porcentagem)
             worksheet.set_column('G:G', 15, workbook.add_format({'num_format': 'R$ #,##0.00'}))  # LUCRO
             worksheet.set_column('H:H', 12, workbook.add_format({'num_format': '#,##0'}))  # QTDE_VENDAS
             
-            # Escrever cabeçalhos (removido PESO P/V)
+            # Escrever cabeçalhos
             headers = [
                 'CÓDIGO', 'DESCRIÇÃO', 'PESO MÉDIO (KG)',
                 'TONELAGEM (KG)', 'FATURAMENTO (R$)', 'MARGEM (%)',
@@ -810,7 +981,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
                 pass
 
 # Configuração principal (mantida igual)
-file_path = r"C:\Users\win11\OneDrive\Documentos\Margens de fechamento\Margem_250531 - wapp - V3.xlsx"
+file_path = r"C:\Users\win11\OneDrive\Documentos\Margens de fechamento\Margem_250724 - wapp.xlsx"
 sheet_name = "Base (3,5%)"
 output_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
 items_per_page = 5
