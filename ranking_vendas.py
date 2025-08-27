@@ -814,7 +814,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
             'FIGADO': [1818, 1454, 1528],
             'FILÉ DE PEITO DE FRANGO': [1632, 1386],
             'LAGARTO': [1849, 1396],
-            'CALABRESA SADIA': [1339, 807, 1848],
+            'CALABRESA SADIA': [1339, 807, 1848, 1847],
             'LÍNGUA SALGADA': [817, 849, 1430],
             'LOMBO SALGADO': [846, 878, 1432],
             'MASC. ORELHA SALGADA': [1426, 1447, 850, 746],
