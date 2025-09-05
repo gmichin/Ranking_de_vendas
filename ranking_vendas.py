@@ -807,6 +807,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
         product_groups = {
             'BARRIGA': [1833, 1639, 1544, 1674, 1863, 1845, 1385],
             'BUCHO': [1567, 1816, 1856, 1480, 1527],
+            'CARNE SALGADA': [1428, 845, 809, 1452],
             'CARRE': [1817, 1464, 1533, 1221, 1177, 917, 1689],
             'COSTELA BOV': [1768, 1825],
             'COSTELA INT. SUINA': [1879, 1517, 1179, 1416, 1760, 1758, 1829],
@@ -824,7 +825,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
             'PEITO BOV': [1815, 1875, 1789],
             'PONTA SALGADA': [1425, 750],
             'RABO BOV': [1828, 1839, 1876, 1861, 1116, 1705],
-            'RABO SUINO SALGADO': [851, 1429, 748]
+            'RABO SUINO SALGADO': [851, 1429, 748, 1449]
         }
         
         # Inverter o dicionário para mapear código para nome do grupo
@@ -981,7 +982,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
                 pass
 
 # Configuração principal (mantida igual)
-file_path = r"C:\Users\win11\Downloads\Margem_250826 - wapp.xlsx"
+file_path = r"C:\Users\win11\OneDrive\Documentos\Margens de fechamento\Margem_250831 - wapp.xlsx"
 sheet_name = "Base (3,5%)"
 output_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
 items_per_page = 5
