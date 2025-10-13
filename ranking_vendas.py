@@ -110,17 +110,19 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
     try:
         # 1. Definir os grupos de produtos (todos em maiúsculas)
         product_groups = {
-            'ACEM': [1924, 8006, 1940],
-            'ALCATRA': [8001, 1836],
-            'BARRIGA': [1833, 1639, 1544, 1674, 1863, 1845, 1385, 1898, 1913],
-            'BUCHO': [1567, 1816, 1856, 1480, 1527],
+            'ACEM': [1924, 8006, 1940, 1878, 8101],
+            'ALCATRA C/ MAMINHA': [8001, 1836, 1965],
+            'BARRIGA': [1833, 1639, 1544, 1674, 1863, 1845, 1385, 1898, 1913, 1513, 
+                        1444, 1434, 1960, 1954],
+            'BUCHO': [1567, 1816, 1856, 1480, 1527, 1903, 1855],
             'CARNE SALGADA': [1428, 845, 809, 1452],
             'CARNE TEMPERADA': [1720, 1623, 1618],
             'CARRE': [1568, 1355, 1443, 1817, 1464, 1640, 1533, 1286, 1518, 1653, 1216, 
-                      1316, 906, 1210, 1908, 1221, 1177, 1612, 1634, 917, 1689, 1511],
-            'CONTRA FILÉ': [1901, 1922, 1840, 1947, 1894],
+                      1316, 906, 1210, 1908, 1221, 1177, 1612, 1634, 917, 1689, 1511,
+                      1955],
+            'CONTRA FILÉ': [1901, 1922, 1840, 1947, 1894, 1899, 1905, 1503],
             'CORAÇÃO DE ALCATRA': [1830, 1939],
-            'COSTELA BOV': [1768, 1825, 1931, 1814],
+            'COSTELA BOV': [1768, 1825, 1931, 1814, 1890, 1890],
             'COSTELA SUINA CONGELADA': [1478, 1595, 1506, 1081, 1592, 1412, 1641, 1888, 
                                         1522, 1638, 1607, 1517, 1461, 1416, 1760, 1877, 
                                         1664, 1053, 1314, 1617, 1599, 1896, 1857, 1179,
@@ -129,31 +131,35 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                                         1665, 1327, 1442, 1431, 1704, 1736, 1445, 1321,
                                         1884, 1535, 8007],
             'COSTELA SALGADA': [1446, 755, 848, 1433, 1095],
-            'COXÃO DURO': [1920, 8003, 1803],
-            'COXÃO MOLE': [1831, 8002],
+            'COXÃO DURO': [1920, 8003, 1803, 1949],
+            'COXÃO MOLE': [1831, 8002, 1948],
+            'COXINHA DA ASA': [1604, 1546],
             'CUPIM A': [1772],
-            'CUPIM B': [1804, 1456, 1926, 1933],
+            'CUPIM B': [1804, 1456, 1926],
             'FIGADO': [1808, 1455, 1818, 1910, 1823, 1537, 1505, 1408, 1373, 1458, 1508,
-                       1525, 1454, 1801, 1528, 1530, 1945, 1502],
-            'FILÉ DE PEITO DE FRANGO': [1632, 1386, 1935, 1881, 1936],
-            'LAGARTO': [1849, 1396],
+                       1525, 1454, 1801, 1528, 1530, 1502, 1945, 1967],
+            'FILÉ DE PEITO DE FRANGO': [1632, 1386, 1935],
+            'JERKED': [1893, 1943, 1880, 1886],
+            'LAGARTO': [1849, 1396, 1895],
             'CALABRESA SADIA': [1339, 807, 1848, 1847],
-            'JERKED BOV': [1893, 1943, 1880],
             'LÍNGUA SALGADA': [817, 849, 1430],
             'LOMBO SALGADO': [846, 878, 1432, 1451],
-            'MASCARA ORELHA SALGADA': [1426, 1447, 850, 746],
+            'MASC. ORELHA SALGADA': [1426, 1447, 850, 746],
             'MOCOTÓ': [1539, 1460, 1342, 1540, 1675, 1850, 1827, 1821, 1853, 1407, 1723,
-                       1585, 1407, 1723, 1585, 1843, 1584, 762, 1534, 1883, 1509, 1601],
-            'PATINHO': [1805, 1874, 8000, 1938],
+                       1585, 1407, 1723, 1585, 1843, 1584, 762, 1534, 1883, 1509, 1601,
+                       1962],
+            'PATINHO': [1805, 1874, 8000, 1938, 9166, 1966],
+            'PALETA': [1953, 1964, 1923],
             'PÉ SALGADO': [1427, 836, 852, 1450],
-            'PEITO BOV': [1815, 1875, 1789],
+            'PEITO BOV': [1815, 1875, 1789, 1952],
             'PERNIL SUINO C/OSSO C/PELE': [1942, 1635],
             'PICANHA B': [1946, 1950],
             'PONTA SALGADA': [1425, 750],
-            'RABO BOV': [1828, 1839, 1876, 1861, 1116, 1705, 1531, 1906, 1826],
-            'RABO SUINO SALGADO': [851, 1429, 748, 1449]
+            'RABO BOV': [1828, 1839, 1876, 1861, 1116, 1705, 1531, 1906, 1826, 1911, 1882,
+                        1571, 1335, 1963],
+            'RABO SUINO SALGADA': [851, 1429, 748, 1449],
+            'SALSICHA': [759, 816, 815, 1162, 1189]
         }
-        
         
         # Inverter o dicionário para mapear código para nome do grupo
         code_to_group = {}
@@ -403,60 +409,63 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                 table.set_fontsize(8)
                 table.scale(1, 1.3)
                 
-                # Gráfico de Pizza 
+                # Gráfico de Pizza - CORREÇÃO APLICADA AQUI
                 ax2.set_title('Distribuição Percentual', fontsize=10, pad=10)
                 colormap_name = 'jet'
                 num_produtos = len(produtos_na_pagina)
                 colors = plt.colormaps[colormap_name].resampled(num_produtos)
 
-                # Verificar se há valores negativos ou soma zero
+                # Verificar se há valores negativos ou soma zero - MENSAGEM EM VERMELHO
                 if (chunk[metric_column] < 0).any():
                     ax2.text(0.5, 0.5, 'Gráfico não disponível:\nvalores negativos presentes', 
-                            ha='center', va='center', fontsize=10)
+                            ha='center', va='center', fontsize=10, color='red', fontweight='bold')
                     ax2.axis('off')
                 elif chunk[metric_column].sum() <= 0:
                     ax2.text(0.5, 0.5, 'Dados insuficientes\npara o gráfico', 
-                            ha='center', va='center', fontsize=10)
+                            ha='center', va='center', fontsize=10, color='red', fontweight='bold')
                     ax2.axis('off')
                 else:
-                    if metric_name == 'Faturamento':
-                        autopct_format = lambda p: f'{p:.1f}%\n({format_currency(p*sum(chunk[metric_column])/100)})'
-                    elif metric_name == 'Margem':
-                        autopct_format = lambda p: f'{p:.1f}%\n({p*sum(chunk[metric_column])/100:.2f}%)'
-                    else:
-                        autopct_format = lambda p: f'{p:.1f}%\n({p*sum(chunk[metric_column])/100:,.1f} {unit})'.replace(",", "X").replace(".", ",").replace("X", ".")
+                    try:
+                        if metric_name == 'Faturamento':
+                            autopct_format = lambda p: f'{p:.1f}%\n({format_currency(p*sum(chunk[metric_column])/100)})'
+                        elif metric_name == 'Margem':
+                            autopct_format = lambda p: f'{p:.1f}%\n({p*sum(chunk[metric_column])/100:.2f}%)'
+                        else:
+                            autopct_format = lambda p: f'{p:.1f}%\n({p*sum(chunk[metric_column])/100:,.1f} {unit})'.replace(",", "X").replace(".", ",").replace("X", ".")
 
-                    wedges, texts, autotexts = ax2.pie(
-                        chunk[metric_column],
-                        autopct=autopct_format,
-                        startangle=140,
-                        textprops={'fontsize': 7, 'color': 'white'},
-                        wedgeprops={'linewidth': 0.5, 'edgecolor': 'white'},
-                        pctdistance=0.85,
-                        colors=[colors(i) for i in range(num_produtos)]
-                    )
+                        wedges, texts, autotexts = ax2.pie(
+                            chunk[metric_column],
+                            autopct=autopct_format,
+                            startangle=140,
+                            textprops={'fontsize': 7, 'color': 'white'},
+                            wedgeprops={'linewidth': 0.5, 'edgecolor': 'white'},
+                            pctdistance=0.85,
+                            colors=[colors(i) for i in range(num_produtos)]
+                        )
 
-                    for text, wedge in zip(autotexts, wedges):
-                        wedge_color = wedge.get_facecolor()
-                        text.set_color('white')
-                        text.set_path_effects([
-                            patheffects.withStroke(linewidth=2, foreground=wedge_color),
-                            patheffects.Normal()
-                        ])
+                        for text, wedge in zip(autotexts, wedges):
+                            wedge_color = wedge.get_facecolor()
+                            text.set_color('white')
+                            text.set_path_effects([
+                                patheffects.withStroke(linewidth=2, foreground=wedge_color),
+                                patheffects.Normal()
+                            ])
 
-                    n_cols = min(4, len(chunk))
-                    ax2.legend(wedges, chunk['DESCRICAO'],
-                              loc="upper center",
-                              bbox_to_anchor=(0.5, -0.05),
-                              ncol=n_cols,
-                              fontsize=7,
-                              title_fontsize=8,
-                              frameon=False)
+                        n_cols = min(4, len(chunk))
+                        ax2.legend(wedges, chunk['DESCRICAO'],
+                                  loc="upper center",
+                                  bbox_to_anchor=(0.5, -0.05),
+                                  ncol=n_cols,
+                                  fontsize=7,
+                                  title_fontsize=8,
+                                  frameon=False)
+                    except Exception as pie_error:
+                        # Se ainda der erro, mostrar mensagem em vermelho
+                        ax2.text(0.5, 0.5, f'Erro no gráfico:\n{str(pie_error)}', 
+                                ha='center', va='center', fontsize=9, color='red', fontweight='bold')
+                        ax2.axis('off')
                 
-                # Gráfico de Linha
-                ts_filtered = time_series[time_series['CODPRODUTO'].isin(produtos_na_pagina)]
-                ts_filtered = pd.merge(ts_filtered, latest_descriptions_combined, on='CODPRODUTO', how='left')
-                
+                # Gráfico de Linha - CORREÇÃO APLICADA AQUI
                 ax3.set_title('Evolução Temporal (por semana)', fontsize=10, pad=10)
                 ax3.set_ylabel(f'{metric_name} ({unit})', fontsize=8)
                 
@@ -464,59 +473,74 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                 labels = []
                 product_colors = {prod: colors(i) for i, prod in enumerate(produtos_na_pagina)}
                 
-                for produto, group in ts_filtered.groupby('CODPRODUTO'):
-                    group = group.sort_values('SEMANA')
-                    line_color = product_colors[produto]
+                ts_filtered = time_series[time_series['CODPRODUTO'].isin(produtos_na_pagina)]
+                ts_filtered = pd.merge(ts_filtered, latest_descriptions_combined, on='CODPRODUTO', how='left')
+                
+                # Verificar se há dados para o gráfico de linha
+                if ts_filtered.empty:
+                    ax3.text(0.5, 0.5, 'Dados insuficientes\npara o gráfico de linha', 
+                            ha='center', va='center', fontsize=10, color='red', fontweight='bold')
+                    ax3.axis('off')
+                else:
+                    for produto, group in ts_filtered.groupby('CODPRODUTO'):
+                        group = group.sort_values('SEMANA')
+                        line_color = product_colors[produto]
 
-                    line, = ax3.plot(group['SEMANA'], group[metric_column], 
-                                   marker='o', linestyle='-', 
-                                   color=line_color,
-                                   markersize=4, linewidth=1.5)
-                    lines.append(line)
-                    labels.append(group['DESCRICAO'].iloc[0])
+                        line, = ax3.plot(group['SEMANA'], group[metric_column], 
+                                       marker='o', linestyle='-', 
+                                       color=line_color,
+                                       markersize=4, linewidth=1.5)
+                        lines.append(line)
+                        labels.append(group['DESCRICAO'].iloc[0])
 
-                    for x, y in zip(group['SEMANA'], group[metric_column]):
-                        if metric_name == 'Faturamento':
-                            label = format_currency(y)
-                        elif metric_name == 'Margem':
-                            label = f'{y:.2f}%'
-                        else:
-                            label = f'{y:,.1f}'.replace(",", "X").replace(".", ",").replace("X", ".")
+                        for x, y in zip(group['SEMANA'], group[metric_column]):
+                            if metric_name == 'Faturamento':
+                                label = format_currency(y)
+                            elif metric_name == 'Margem':
+                                label = f'{y:.2f}%'
+                            else:
+                                label = f'{y:,.1f}'.replace(",", "X").replace(".", ",").replace("X", ".")
+                            
+                            annotation = ax3.annotate(label, 
+                                xy=(x, y),
+                                xytext=(0, 5),
+                                textcoords='offset points',
+                                ha='center', va='bottom',
+                                fontsize=6,
+                                color="white")
+                            annotation.set_path_effects([
+                                patheffects.withStroke(linewidth=2, foreground=line_color),
+                                patheffects.Normal()
+                            ])
+                    
+                    # Só criar legenda se houver linhas
+                    if len(lines) > 0:
+                        ax3.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%d/%m'))
+                        ax3.xaxis.set_major_locator(plt.matplotlib.dates.WeekdayLocator(byweekday=plt.matplotlib.dates.MO))
                         
-                        annotation = ax3.annotate(label, 
-                            xy=(x, y),
-                            xytext=(0, 5),
-                            textcoords='offset points',
-                            ha='center', va='bottom',
-                            fontsize=6,
-                            color="white")
-                        annotation.set_path_effects([
-                            patheffects.withStroke(linewidth=2, foreground=line_color),
-                            patheffects.Normal()
-                        ])
-                
-                ax3.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%d/%m'))
-                ax3.xaxis.set_major_locator(plt.matplotlib.dates.WeekdayLocator(byweekday=plt.matplotlib.dates.MO))
-                
-                tick_labels = []
-                for semana in ax3.get_xticks():
-                    semana_inicio = plt.matplotlib.dates.num2date(semana)
-                    semana_fim = semana_inicio + timedelta(days=6)
-                    tick_labels.append(f"{semana_inicio.strftime('%d/%m')}\na\n{semana_fim.strftime('%d/%m')}")
-                
-                ax3.set_xticklabels(tick_labels)
-                
-                n_cols = min(4, len(lines))
-                ax3.legend(lines, labels,
-                          loc="upper center",
-                          bbox_to_anchor=(0.5, -0.2),
-                          ncol=n_cols,
-                          fontsize=7,
-                          frameon=False)
-                
-                ax3.grid(True, linestyle=':', alpha=0.5)
-                plt.setp(ax3.get_xticklabels(), rotation=30, ha='right', fontsize=7)
-                plt.setp(ax3.get_yticklabels(), fontsize=7)
+                        tick_labels = []
+                        for semana in ax3.get_xticks():
+                            semana_inicio = plt.matplotlib.dates.num2date(semana)
+                            semana_fim = semana_inicio + timedelta(days=6)
+                            tick_labels.append(f"{semana_inicio.strftime('%d/%m')}\na\n{semana_fim.strftime('%d/%m')}")
+                        
+                        ax3.set_xticklabels(tick_labels)
+                        
+                        n_cols = min(4, len(lines))
+                        ax3.legend(lines, labels,
+                                  loc="upper center",
+                                  bbox_to_anchor=(0.5, -0.2),
+                                  ncol=n_cols,
+                                  fontsize=7,
+                                  frameon=False)
+                        
+                        ax3.grid(True, linestyle=':', alpha=0.5)
+                        plt.setp(ax3.get_xticklabels(), rotation=30, ha='right', fontsize=7)
+                        plt.setp(ax3.get_yticklabels(), fontsize=7)
+                    else:
+                        ax3.text(0.5, 0.5, 'Dados insuficientes\npara o gráfico de linha', 
+                                ha='center', va='center', fontsize=10, color='red', fontweight='bold')
+                        ax3.axis('off')
                 
                 # Gráfico de Barras
                 ax4.set_title(f'{metric_name} por Produto', fontsize=10, pad=10)
@@ -565,8 +589,10 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
 
     except Exception as e:
         print(f"ERRO ao gerar relatório de {metric_name}: {str(e)}")
+        import traceback
+        traceback.print_exc()
         for path in [output_path, temp_path]:
-            if os.path.exists(path):
+            if path and os.path.exists(path):
                 try:
                     os.remove(path)
                 except:
@@ -828,17 +854,19 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
         
         # 2. Definir os grupos de produtos (todos em maiúsculas)
         product_groups = {
-            'ACEM': [1924, 8006, 1940],
-            'ALCATRA': [8001, 1836],
-            'BARRIGA': [1833, 1639, 1544, 1674, 1863, 1845, 1385, 1898, 1913],
-            'BUCHO': [1567, 1816, 1856, 1480, 1527],
+            'ACEM': [1924, 8006, 1940, 1878, 8101],
+            'ALCATRA C/ MAMINHA': [8001, 1836, 1965],
+            'BARRIGA': [1833, 1639, 1544, 1674, 1863, 1845, 1385, 1898, 1913, 1513, 
+                        1444, 1434, 1960, 1954],
+            'BUCHO': [1567, 1816, 1856, 1480, 1527, 1903, 1855],
             'CARNE SALGADA': [1428, 845, 809, 1452],
             'CARNE TEMPERADA': [1720, 1623, 1618],
             'CARRE': [1568, 1355, 1443, 1817, 1464, 1640, 1533, 1286, 1518, 1653, 1216, 
-                      1316, 906, 1210, 1908, 1221, 1177, 1612, 1634, 917, 1689, 1511],
-            'CONTRA FILÉ': [1901, 1922, 1840, 1947, 1894],
+                      1316, 906, 1210, 1908, 1221, 1177, 1612, 1634, 917, 1689, 1511,
+                      1955],
+            'CONTRA FILÉ': [1901, 1922, 1840, 1947, 1894, 1899, 1905, 1503],
             'CORAÇÃO DE ALCATRA': [1830, 1939],
-            'COSTELA BOV': [1768, 1825, 1931, 1814],
+            'COSTELA BOV': [1768, 1825, 1931, 1814, 1890, 1890],
             'COSTELA SUINA CONGELADA': [1478, 1595, 1506, 1081, 1592, 1412, 1641, 1888, 
                                         1522, 1638, 1607, 1517, 1461, 1416, 1760, 1877, 
                                         1664, 1053, 1314, 1617, 1599, 1896, 1857, 1179,
@@ -847,29 +875,34 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
                                         1665, 1327, 1442, 1431, 1704, 1736, 1445, 1321,
                                         1884, 1535, 8007],
             'COSTELA SALGADA': [1446, 755, 848, 1433, 1095],
-            'COXÃO DURO': [1920, 8003, 1803],
-            'COXÃO MOLE': [1831, 8002],
+            'COXÃO DURO': [1920, 8003, 1803, 1949],
+            'COXÃO MOLE': [1831, 8002, 1948],
+            'COXINHA DA ASA': [1604, 1546],
             'CUPIM A': [1772],
-            'CUPIM B': [1804, 1456, 1926, 1933],
+            'CUPIM B': [1804, 1456, 1926],
             'FIGADO': [1808, 1455, 1818, 1910, 1823, 1537, 1505, 1408, 1373, 1458, 1508,
-                       1525, 1454, 1801, 1528, 1530, 1945, 1502],
-            'FILÉ DE PEITO DE FRANGO': [1632, 1386, 1935, 1881, 1936],
-            'LAGARTO': [1849, 1396],
+                       1525, 1454, 1801, 1528, 1530, 1502, 1945, 1967],
+            'FILÉ DE PEITO DE FRANGO': [1632, 1386, 1935],
+            'JERKED': [1893, 1943, 1880, 1886],
+            'LAGARTO': [1849, 1396, 1895],
             'CALABRESA SADIA': [1339, 807, 1848, 1847],
-            'JERKED BOV': [1893, 1943, 1880],
             'LÍNGUA SALGADA': [817, 849, 1430],
             'LOMBO SALGADO': [846, 878, 1432, 1451],
-            'MASCARA ORELHA SALGADA': [1426, 1447, 850, 746],
+            'MASC. ORELHA SALGADA': [1426, 1447, 850, 746],
             'MOCOTÓ': [1539, 1460, 1342, 1540, 1675, 1850, 1827, 1821, 1853, 1407, 1723,
-                       1585, 1407, 1723, 1585, 1843, 1584, 762, 1534, 1883, 1509, 1601],
-            'PATINHO': [1805, 1874, 8000, 1938],
+                       1585, 1407, 1723, 1585, 1843, 1584, 762, 1534, 1883, 1509, 1601,
+                       1962],
+            'PATINHO': [1805, 1874, 8000, 1938, 9166, 1966],
+            'PALETA': [1953, 1964, 1923],
             'PÉ SALGADO': [1427, 836, 852, 1450],
-            'PEITO BOV': [1815, 1875, 1789],
+            'PEITO BOV': [1815, 1875, 1789, 1952],
             'PERNIL SUINO C/OSSO C/PELE': [1942, 1635],
             'PICANHA B': [1946, 1950],
             'PONTA SALGADA': [1425, 750],
-            'RABO BOV': [1828, 1839, 1876, 1861, 1116, 1705, 1531, 1906, 1826],
-            'RABO SUINO SALGADO': [851, 1429, 748, 1449]
+            'RABO BOV': [1828, 1839, 1876, 1861, 1116, 1705, 1531, 1906, 1826, 1911, 1882,
+                        1571, 1335, 1963],
+            'RABO SUINO SALGADA': [851, 1429, 748, 1449],
+            'SALSICHA': [759, 816, 815, 1162, 1189]
         }
         
         # Inverter o dicionário para mapear código para nome do grupo
@@ -1026,7 +1059,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
                 pass
 
 # Configuração principal (mantida igual)
-file_path = r"C:\Users\win11\OneDrive\Documentos\Margens de fechamento\Margem_250930 - wapp - v3.xlsx"
+file_path = r"C:\Users\win11\Downloads\Margem_251010 - wapp.xlsx"
 sheet_name = "Base (3,5%)"
 output_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
 items_per_page = 5
