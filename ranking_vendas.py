@@ -110,37 +110,50 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
     try:
         # 1. Definir os grupos de produtos (todos em maiúsculas)
         product_groups = {
-            'BARRIGA': [1833, 1639, 1544, 1674, 1863, 1845, 1385],
+            'ACEM': [1924, 8006, 1940],
+            'ALCATRA': [8001, 1836],
+            'BARRIGA': [1833, 1639, 1544, 1674, 1863, 1845, 1385, 1898, 1913],
             'BUCHO': [1567, 1816, 1856, 1480, 1527],
             'CARNE SALGADA': [1428, 845, 809, 1452],
+            'CARNE TEMPERADA': [1720, 1623, 1618],
             'CARRE': [1568, 1355, 1443, 1817, 1464, 1640, 1533, 1286, 1518, 1653, 1216, 
                       1316, 906, 1210, 1908, 1221, 1177, 1612, 1634, 917, 1689, 1511],
-            'COSTELA BOV': [1768, 1825],
+            'CONTRA FILÉ': [1901, 1922, 1840, 1947, 1894],
+            'CORAÇÃO DE ALCATRA': [1830, 1939],
+            'COSTELA BOV': [1768, 1825, 1931, 1814],
             'COSTELA SUINA CONGELADA': [1478, 1595, 1506, 1081, 1592, 1412, 1641, 1888, 
                                         1522, 1638, 1607, 1517, 1461, 1416, 1760, 1877, 
                                         1664, 1053, 1314, 1617, 1599, 1896, 1857, 1179,
                                         1324, 1529, 1421, 1323, 1879, 1052, 1051, 1354,
                                         905,  1384, 1086, 1174, 1150, 1758, 1320, 1829,
                                         1665, 1327, 1442, 1431, 1704, 1736, 1445, 1321,
-                                        1884, 1535],
+                                        1884, 1535, 8007],
             'COSTELA SALGADA': [1446, 755, 848, 1433, 1095],
+            'COXÃO DURO': [1920, 8003, 1803],
+            'COXÃO MOLE': [1831, 8002],
+            'CUPIM A': [1772],
+            'CUPIM B': [1804, 1456, 1926, 1933],
             'FIGADO': [1808, 1455, 1818, 1910, 1823, 1537, 1505, 1408, 1373, 1458, 1508,
-                       1525, 1454, 1801, 1528, 1530, 1502],
-            'FILÉ DE PEITO DE FRANGO': [1632, 1386],
+                       1525, 1454, 1801, 1528, 1530, 1945, 1502],
+            'FILÉ DE PEITO DE FRANGO': [1632, 1386, 1935, 1881, 1936],
             'LAGARTO': [1849, 1396],
             'CALABRESA SADIA': [1339, 807, 1848, 1847],
+            'JERKED BOV': [1893, 1943, 1880],
             'LÍNGUA SALGADA': [817, 849, 1430],
-            'LOMBO SALGADO': [846, 878, 1432],
-            'MASC. ORELHA SALGADA': [1426, 1447, 850, 746],
+            'LOMBO SALGADO': [846, 878, 1432, 1451],
+            'MASCARA ORELHA SALGADA': [1426, 1447, 850, 746],
             'MOCOTÓ': [1539, 1460, 1342, 1540, 1675, 1850, 1827, 1821, 1853, 1407, 1723,
                        1585, 1407, 1723, 1585, 1843, 1584, 762, 1534, 1883, 1509, 1601],
-            'PATINHO': [1805, 1874],
+            'PATINHO': [1805, 1874, 8000, 1938],
             'PÉ SALGADO': [1427, 836, 852, 1450],
             'PEITO BOV': [1815, 1875, 1789],
+            'PERNIL SUINO C/OSSO C/PELE': [1942, 1635],
+            'PICANHA B': [1946, 1950],
             'PONTA SALGADA': [1425, 750],
-            'RABO BOV': [1828, 1839, 1876, 1861, 1116, 1705],
+            'RABO BOV': [1828, 1839, 1876, 1861, 1116, 1705, 1531, 1906, 1826],
             'RABO SUINO SALGADO': [851, 1429, 748, 1449]
         }
+        
         
         # Inverter o dicionário para mapear código para nome do grupo
         code_to_group = {}
@@ -815,35 +828,47 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
         
         # 2. Definir os grupos de produtos (todos em maiúsculas)
         product_groups = {
-            'BARRIGA': [1833, 1639, 1544, 1674, 1863, 1845, 1385],
+            'ACEM': [1924, 8006, 1940],
+            'ALCATRA': [8001, 1836],
+            'BARRIGA': [1833, 1639, 1544, 1674, 1863, 1845, 1385, 1898, 1913],
             'BUCHO': [1567, 1816, 1856, 1480, 1527],
             'CARNE SALGADA': [1428, 845, 809, 1452],
+            'CARNE TEMPERADA': [1720, 1623, 1618],
             'CARRE': [1568, 1355, 1443, 1817, 1464, 1640, 1533, 1286, 1518, 1653, 1216, 
                       1316, 906, 1210, 1908, 1221, 1177, 1612, 1634, 917, 1689, 1511],
-            'COSTELA BOV': [1768, 1825],
+            'CONTRA FILÉ': [1901, 1922, 1840, 1947, 1894],
+            'CORAÇÃO DE ALCATRA': [1830, 1939],
+            'COSTELA BOV': [1768, 1825, 1931, 1814],
             'COSTELA SUINA CONGELADA': [1478, 1595, 1506, 1081, 1592, 1412, 1641, 1888, 
                                         1522, 1638, 1607, 1517, 1461, 1416, 1760, 1877, 
                                         1664, 1053, 1314, 1617, 1599, 1896, 1857, 1179,
                                         1324, 1529, 1421, 1323, 1879, 1052, 1051, 1354,
                                         905,  1384, 1086, 1174, 1150, 1758, 1320, 1829,
                                         1665, 1327, 1442, 1431, 1704, 1736, 1445, 1321,
-                                        1884, 1535],
+                                        1884, 1535, 8007],
             'COSTELA SALGADA': [1446, 755, 848, 1433, 1095],
+            'COXÃO DURO': [1920, 8003, 1803],
+            'COXÃO MOLE': [1831, 8002],
+            'CUPIM A': [1772],
+            'CUPIM B': [1804, 1456, 1926, 1933],
             'FIGADO': [1808, 1455, 1818, 1910, 1823, 1537, 1505, 1408, 1373, 1458, 1508,
-                       1525, 1454, 1801, 1528, 1530],
-            'FILÉ DE PEITO DE FRANGO': [1632, 1386],
+                       1525, 1454, 1801, 1528, 1530, 1945, 1502],
+            'FILÉ DE PEITO DE FRANGO': [1632, 1386, 1935, 1881, 1936],
             'LAGARTO': [1849, 1396],
             'CALABRESA SADIA': [1339, 807, 1848, 1847],
+            'JERKED BOV': [1893, 1943, 1880],
             'LÍNGUA SALGADA': [817, 849, 1430],
-            'LOMBO SALGADO': [846, 878, 1432],
-            'MASC. ORELHA SALGADA': [1426, 1447, 850, 746],
+            'LOMBO SALGADO': [846, 878, 1432, 1451],
+            'MASCARA ORELHA SALGADA': [1426, 1447, 850, 746],
             'MOCOTÓ': [1539, 1460, 1342, 1540, 1675, 1850, 1827, 1821, 1853, 1407, 1723,
                        1585, 1407, 1723, 1585, 1843, 1584, 762, 1534, 1883, 1509, 1601],
-            'PATINHO': [1805, 1874],
+            'PATINHO': [1805, 1874, 8000, 1938],
             'PÉ SALGADO': [1427, 836, 852, 1450],
             'PEITO BOV': [1815, 1875, 1789],
+            'PERNIL SUINO C/OSSO C/PELE': [1942, 1635],
+            'PICANHA B': [1946, 1950],
             'PONTA SALGADA': [1425, 750],
-            'RABO BOV': [1828, 1839, 1876, 1861, 1116, 1705],
+            'RABO BOV': [1828, 1839, 1876, 1861, 1116, 1705, 1531, 1906, 1826],
             'RABO SUINO SALGADO': [851, 1429, 748, 1449]
         }
         
@@ -1001,7 +1026,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
                 pass
 
 # Configuração principal (mantida igual)
-file_path = r"C:\Users\win11\OneDrive\Documentos\Margens de fechamento\Margem_250831 - wapp.xlsx"
+file_path = r"C:\Users\win11\OneDrive\Documentos\Margens de fechamento\Margem_250930 - wapp - v3.xlsx"
 sheet_name = "Base (3,5%)"
 output_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
 items_per_page = 5
