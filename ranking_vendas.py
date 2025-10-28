@@ -141,6 +141,7 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
             'FILÉ DE PEITO DE FRANGO': [1632, 1386, 1935],
             'JERKED': [1893, 1943, 1880, 1886],
             'LAGARTO': [1849, 1396, 1895],
+            'CALABRESA AURORA': [788, 1974],
             'CALABRESA SADIA': [1339, 807, 1848, 1847],
             'LÍNGUA SALGADA': [817, 849, 1430],
             'LOMBO SALGADO': [846, 878, 1432, 1451],
@@ -885,6 +886,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
             'FILÉ DE PEITO DE FRANGO': [1632, 1386, 1935],
             'JERKED': [1893, 1943, 1880, 1886],
             'LAGARTO': [1849, 1396, 1895],
+            'CALABRESA AURORA': [788, 1974],
             'CALABRESA SADIA': [1339, 807, 1848, 1847],
             'LÍNGUA SALGADA': [817, 849, 1430],
             'LOMBO SALGADO': [846, 878, 1432, 1451],
@@ -1059,7 +1061,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
                 pass
 
 # Configuração principal (mantida igual)
-file_path = r"C:\Users\win11\Downloads\Margem_251010 - wapp.xlsx"
+file_path = r"C:\Users\win11\Downloads\Margem_251027 - wapp.xlsx"
 sheet_name = "Base (3,5%)"
 output_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
 items_per_page = 5
