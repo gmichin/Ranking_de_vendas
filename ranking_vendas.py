@@ -158,8 +158,7 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
             'PONTA SALGADA': [1425, 750],
             'RABO BOV': [1828, 1839, 1876, 1861, 1116, 1705, 1531, 1906, 1826, 1911, 1882,
                         1571, 1335, 1963],
-            'RABO SUINO SALGADA': [851, 1429, 748, 1449],
-            'SALSICHA': [759, 816, 815, 1162, 1189]
+            'RABO SUINO SALGADA': [851, 1429, 748, 1449]
         }
         
         # Inverter o dicionário para mapear código para nome do grupo
@@ -903,8 +902,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
             'PONTA SALGADA': [1425, 750],
             'RABO BOV': [1828, 1839, 1876, 1861, 1116, 1705, 1531, 1906, 1826, 1911, 1882,
                         1571, 1335, 1963],
-            'RABO SUINO SALGADA': [851, 1429, 748, 1449],
-            'SALSICHA': [759, 816, 815, 1162, 1189]
+            'RABO SUINO SALGADA': [851, 1429, 748, 1449]
         }
         
         # Inverter o dicionário para mapear código para nome do grupo
@@ -1061,7 +1059,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
                 pass
 
 # Configuração principal (mantida igual)
-file_path = r"C:\Users\win11\Downloads\Margem_251027 - wapp.xlsx"
+file_path = r"Z:\GUSTAVO\Fechamento analítico\10 -Out 25\Margem_251031 - fechamento - wapp.xlsx"
 sheet_name = "Base (3,5%)"
 output_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
 items_per_page = 5
