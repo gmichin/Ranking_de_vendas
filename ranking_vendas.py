@@ -127,7 +127,7 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                       1955],
             'CONTRA FILÉ': [1901, 1922, 1840, 1947, 1894, 1899, 1905, 1503, 1824],
             'CORAÇÃO DE ALCATRA': [1830, 1939],
-            'COSTELA BOV': [1768, 1825, 1931, 1814, 1890, 1890],
+            'COSTELA BOV': [1768, 1825, 1931, 1814, 1890],
             'COSTELA MINGA': [1973, 1982],
             'COSTELA SUINA CONGELADA': [1478, 1595, 1506, 1081, 1592, 1412, 1641, 1888, 
                                         1522, 1638, 1607, 1517, 1461, 1416, 1760, 1877, 
@@ -249,91 +249,78 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
             )
             df = df[df['Margem Calculada'].notna()]
         
-        # Dividir os dados em produtos agrupados e individuais
-        grouped_df = df[df['GRUPO'].notna()].copy()
-        individual_df = df[df['GRUPO'].isna()].copy()
+        # *** CORREÇÃO PRINCIPAL: Criar uma única tabela com produtos e grupos ***
+        # Para os grupos, vamos usar o nome do grupo como identificador único
+        df_combined = df.copy()
         
-        # ETAPA 3: Processamento do ranking para produtos individuais
+        # Para produtos em grupos, substituir CODPRODUTO pelo nome do grupo
+        df_combined['ID_AGRUPADO'] = df_combined.apply(
+            lambda row: row['GRUPO'] if pd.notna(row['GRUPO']) else str(row['CODPRODUTO']), 
+            axis=1
+        )
+        
+        # Manter descrição original para produtos individuais, usar nome do grupo para grupos
+        df_combined['DESCRICAO_AGRUPADA'] = df_combined.apply(
+            lambda row: row['GRUPO'] if pd.notna(row['GRUPO']) else row['DESCRICAO'], 
+            axis=1
+        )
+        
+        # *** ETAPA 3: Agregar dados por ID_AGRUPADO (grupos e produtos individuais) ***
         if metric_name == 'Tonelagem':
-            individual_grouped = individual_df.groupby('CODPRODUTO').agg({
+            aggregated = df_combined.groupby(['ID_AGRUPADO', 'DESCRICAO_AGRUPADA']).agg({
                 'QTDE REAL': 'sum',
-                'DATA': 'count'  # Conta o número de vendas por produto
+                'DATA': 'count'
             }).reset_index()
-            individual_grouped.rename(columns={
+            aggregated.rename(columns={
                 'QTDE REAL': metric_column,
                 'DATA': 'Qtde de vendas'
             }, inplace=True)
+            aggregated['CODPRODUTO'] = aggregated.apply(
+                lambda row: 'GRUPO' if row['ID_AGRUPADO'] in product_groups.keys() else row['ID_AGRUPADO'],
+                axis=1
+            )
+            
         elif metric_name == 'Faturamento':
-            individual_grouped = individual_df.groupby('CODPRODUTO').agg({
+            aggregated = df_combined.groupby(['ID_AGRUPADO', 'DESCRICAO_AGRUPADA']).agg({
                 'Fat Liquido': 'sum',
-                'DATA': 'count'  # Conta o número de vendas por produto
+                'DATA': 'count'
             }).reset_index()
-            individual_grouped.rename(columns={
+            aggregated.rename(columns={
                 'Fat Liquido': metric_column,
                 'DATA': 'Qtde de vendas'
             }, inplace=True)
+            aggregated['CODPRODUTO'] = aggregated.apply(
+                lambda row: 'GRUPO' if row['ID_AGRUPADO'] in product_groups.keys() else row['ID_AGRUPADO'],
+                axis=1
+            )
+            
         elif metric_name == 'Margem':
-            individual_grouped = individual_df.groupby('CODPRODUTO').agg({
+            aggregated = df_combined.groupby(['ID_AGRUPADO', 'DESCRICAO_AGRUPADA']).agg({
                 'Lucro / Prej.': 'sum',
                 'Fat Liquido': 'sum',
-                'DATA': 'count'  # Conta o número de vendas por produto
+                'DATA': 'count'
             }).reset_index()
-            individual_grouped.rename(columns={'DATA': 'Qtde de vendas'}, inplace=True)
-            individual_grouped[metric_column] = np.where(
-                individual_grouped['Fat Liquido'] <= 0, 0,
-                (individual_grouped['Lucro / Prej.'] / individual_grouped['Fat Liquido']) * 100
+            aggregated.rename(columns={'DATA': 'Qtde de vendas'}, inplace=True)
+            aggregated[metric_column] = np.where(
+                aggregated['Fat Liquido'] <= 0, 0,
+                (aggregated['Lucro / Prej.'] / aggregated['Fat Liquido']) * 100
+            )
+            aggregated['CODPRODUTO'] = aggregated.apply(
+                lambda row: 'GRUPO' if row['ID_AGRUPADO'] in product_groups.keys() else row['ID_AGRUPADO'],
+                axis=1
             )
         
-        # ETAPA 4: Processamento do ranking para grupos de produtos
-        if metric_name == 'Tonelagem':
-            group_aggregated = grouped_df.groupby('GRUPO').agg({
-                'QTDE REAL': 'sum',
-                'DATA': 'count'  # Conta o número de vendas por grupo
-            }).reset_index()
-            group_aggregated.rename(columns={
-                'QTDE REAL': metric_column,
-                'DATA': 'Qtde de vendas'
-            }, inplace=True)
-        elif metric_name == 'Faturamento':
-            group_aggregated = grouped_df.groupby('GRUPO').agg({
-                'Fat Liquido': 'sum',
-                'DATA': 'count'  # Conta o número de vendas por grupo
-            }).reset_index()
-            group_aggregated.rename(columns={
-                'Fat Liquido': metric_column,
-                'DATA': 'Qtde de vendas'
-            }, inplace=True)
-        elif metric_name == 'Margem':
-            group_aggregated = grouped_df.groupby('GRUPO').agg({
-                'Lucro / Prej.': 'sum',
-                'Fat Liquido': 'sum',
-                'DATA': 'count'  # Conta o número de vendas por grupo
-            }).reset_index()
-            group_aggregated.rename(columns={'DATA': 'Qtde de vendas'}, inplace=True)
-            group_aggregated[metric_column] = np.where(
-                group_aggregated['Fat Liquido'] <= 0, 0,
-                (group_aggregated['Lucro / Prej.'] / group_aggregated['Fat Liquido']) * 100
-            )
-        
-        # Adicionar colunas para consistência nos grupos
-        group_aggregated['CODPRODUTO'] = "VÁRIOS"
-        group_aggregated['DESCRICAO'] = group_aggregated['GRUPO'].str.upper()
-        
-        # Obter descrições mais recentes para produtos individuais
-        latest_descriptions = df.sort_values('DATA', ascending=False).drop_duplicates('CODPRODUTO')[['CODPRODUTO', 'DESCRICAO']]
-        individual_grouped = pd.merge(individual_grouped, latest_descriptions, on='CODPRODUTO', how='left')
-        
-        # Combinar dados de grupos e produtos individuais
-        combined_df = pd.concat([
-            group_aggregated[['CODPRODUTO', 'DESCRICAO', metric_column, 'Qtde de vendas']],
-            individual_grouped[['CODPRODUTO', 'DESCRICAO', metric_column, 'Qtde de vendas']]
-        ], ignore_index=True)
+        # Renomear colunas para consistência
+        aggregated.rename(columns={
+            'ID_AGRUPADO': 'GRUPO_ID',
+            'DESCRICAO_AGRUPADA': 'DESCRICAO'
+        }, inplace=True)
         
         # Ordenar e numerar as posições
-        sorted_df = combined_df.sort_values(metric_column, ascending=False).reset_index(drop=True)
+        sorted_df = aggregated.sort_values(metric_column, ascending=False).reset_index(drop=True)
         sorted_df.insert(0, 'Posição', range(1, len(sorted_df)+1))
         
-        # Cálculo do TOTAL
+        # *** Cálculo do TOTAL (incluindo grupos) ***
         if metric_name == 'Tonelagem':
             total_metric = df['QTDE REAL'].sum()
         elif metric_name == 'Faturamento':
@@ -351,41 +338,34 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
         else:  # Tonelagem
             total_text = f"{total_metric:,.3f}".replace(",", "X").replace(".", ",").replace("X", ".")
         
-        # Processar dados para série temporal (agora considerando grupos)
-        time_series = df.copy()
+        # *** ETAPA 4: Processar dados para série temporal (agora considerando grupos corretamente) ***
+        time_series = df_combined.copy()
         time_series['SEMANA'] = time_series['DATA'].dt.to_period('W').dt.start_time
         
-        # Para produtos em grupos, substituir CODPRODUTO pelo nome do grupo
-        time_series['CODPRODUTO'] = time_series.apply(
-            lambda row: row['GRUPO'] if pd.notna(row['GRUPO']) else row['CODPRODUTO'], 
-            axis=1
-        )
-        
+        # Usar ID_AGRUPADO para agrupar
         if metric_name == 'Tonelagem':
-            time_series = time_series.groupby(['CODPRODUTO', 'SEMANA'])['QTDE REAL'].sum().reset_index()
-            time_series.rename(columns={'QTDE REAL': metric_column}, inplace=True)
+            time_series_agg = time_series.groupby(['ID_AGRUPADO', 'SEMANA'])['QTDE REAL'].sum().reset_index()
+            time_series_agg.rename(columns={'QTDE REAL': metric_column}, inplace=True)
         elif metric_name == 'Faturamento':
-            time_series = time_series.groupby(['CODPRODUTO', 'SEMANA'])['Fat Liquido'].sum().reset_index()
-            time_series.rename(columns={'Fat Liquido': metric_column}, inplace=True)
+            time_series_agg = time_series.groupby(['ID_AGRUPADO', 'SEMANA'])['Fat Liquido'].sum().reset_index()
+            time_series_agg.rename(columns={'Fat Liquido': metric_column}, inplace=True)
         elif metric_name == 'Margem':
-            time_series = time_series.groupby(['CODPRODUTO', 'SEMANA']).agg({
+            time_series_agg = time_series.groupby(['ID_AGRUPADO', 'SEMANA']).agg({
                 'Lucro / Prej.': 'sum',
                 'Fat Liquido': 'sum'
             }).reset_index()
-            time_series[metric_column] = np.where(
-                time_series['Fat Liquido'] <= 0, 0,
-                (time_series['Lucro / Prej.'] / time_series['Fat Liquido']) * 100
+            time_series_agg[metric_column] = np.where(
+                time_series_agg['Fat Liquido'] <= 0, 0,
+                (time_series_agg['Lucro / Prej.'] / time_series_agg['Fat Liquido']) * 100
             )
         
-        # Obter descrições mais recentes (agora incluindo grupos)
-        latest_descriptions_combined = pd.concat([
-            group_aggregated[['CODPRODUTO', 'DESCRICAO']],
-            latest_descriptions
-        ]).drop_duplicates('CODPRODUTO')
+        # Mapear IDs para descrições
+        id_to_description = dict(zip(aggregated['GRUPO_ID'], aggregated['DESCRICAO']))
+        time_series_agg['DESCRICAO'] = time_series_agg['ID_AGRUPADO'].map(id_to_description)
         
         # Criar PDF temporário
         with PdfPages(temp_path) as pdf:
-            # Página de título (mantida igual)
+            # Página de título
             fig_title = plt.figure(figsize=(11, 16))
             plt.text(0.5, 0.5, f"RANKING DE VENDAS - {metric_name.upper()}", 
                     fontsize=24, ha='center', va='center', fontweight='bold')
@@ -397,10 +377,10 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
             pdf.savefig(fig_title, bbox_inches='tight')
             plt.close(fig_title)
             
-            # Páginas de conteúdo (mantidas iguais, mas agora trabalhando com os dados combinados)
+            # Páginas de conteúdo
             for i in range(0, len(sorted_df), items_per_page):
                 chunk = sorted_df.iloc[i:i+items_per_page]
-                produtos_na_pagina = chunk['CODPRODUTO'].tolist()
+                produtos_na_pagina = chunk['GRUPO_ID'].tolist()
                 
                 fig = plt.figure(figsize=(11, 16))
                 gs = fig.add_gridspec(4, 1)
@@ -424,26 +404,27 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                 else:  # Tonelagem
                     display_values = display_values.apply(lambda x: f"{x:,.3f}".replace(",", "X").replace(".", ",").replace("X", "."))
                 
+                # *** CORREÇÃO: Mostrar "GRUPO" na coluna de código para grupos ***
                 table_data = chunk[['Posição', 'CODPRODUTO', 'DESCRICAO', 'Qtde de vendas']].copy()
                 table_data[metric_column] = display_values
                 table = ax1.table(
                     cellText=table_data.values,
-                    colLabels=['Posição', 'Código', 'Descrição', 'Qtde de vendas', f'{metric_name} ({unit})'],
+                    colLabels=['Posição', 'Tipo', 'Descrição', 'Qtde de vendas', f'{metric_name} ({unit})'],
                     loc='center',
                     cellLoc='center',
-                    colWidths=[0.1, 0.1, 0.4, 0.2, 0.2]
+                    colWidths=[0.08, 0.08, 0.4, 0.2, 0.24]
                 )
                 table.auto_set_font_size(False)
                 table.set_fontsize(8)
                 table.scale(1, 1.3)
                 
-                # Gráfico de Pizza - CORREÇÃO APLICADA AQUI
+                # Gráfico de Pizza
                 ax2.set_title('Distribuição Percentual', fontsize=10, pad=10)
                 colormap_name = 'jet'
                 num_produtos = len(produtos_na_pagina)
                 colors = plt.colormaps[colormap_name].resampled(num_produtos)
 
-                # Verificar se há valores negativos ou soma zero - MENSAGEM EM VERMELHO
+                # Verificar se há valores negativos ou soma zero
                 if (chunk[metric_column] < 0).any():
                     ax2.text(0.5, 0.5, 'Gráfico não disponível:\nvalores negativos presentes', 
                             ha='center', va='center', fontsize=10, color='red', fontweight='bold')
@@ -488,12 +469,11 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                                   title_fontsize=8,
                                   frameon=False)
                     except Exception as pie_error:
-                        # Se ainda der erro, mostrar mensagem em vermelho
                         ax2.text(0.5, 0.5, f'Erro no gráfico:\n{str(pie_error)}', 
                                 ha='center', va='center', fontsize=9, color='red', fontweight='bold')
                         ax2.axis('off')
                 
-                # Gráfico de Linha - CORREÇÃO APLICADA AQUI
+                # Gráfico de Linha
                 ax3.set_title('Evolução Temporal (por semana)', fontsize=10, pad=10)
                 ax3.set_ylabel(f'{metric_name} ({unit})', fontsize=8)
                 
@@ -501,8 +481,8 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                 labels = []
                 product_colors = {prod: colors(i) for i, prod in enumerate(produtos_na_pagina)}
                 
-                ts_filtered = time_series[time_series['CODPRODUTO'].isin(produtos_na_pagina)]
-                ts_filtered = pd.merge(ts_filtered, latest_descriptions_combined, on='CODPRODUTO', how='left')
+                # Filtrar dados de série temporal para os produtos desta página
+                ts_filtered = time_series_agg[time_series_agg['ID_AGRUPADO'].isin(produtos_na_pagina)]
                 
                 # Verificar se há dados para o gráfico de linha
                 if ts_filtered.empty:
@@ -510,7 +490,7 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                             ha='center', va='center', fontsize=10, color='red', fontweight='bold')
                     ax3.axis('off')
                 else:
-                    for produto, group in ts_filtered.groupby('CODPRODUTO'):
+                    for produto, group in ts_filtered.groupby('ID_AGRUPADO'):
                         group = group.sort_values('SEMANA')
                         line_color = product_colors[produto]
 
@@ -625,6 +605,7 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                     os.remove(path)
                 except:
                     pass
+                
 
 def generate_general_report(file_path, sheet_name, output_dir):
     """Gera um relatório geral com estatísticas básicas e gráficos comparativos"""
