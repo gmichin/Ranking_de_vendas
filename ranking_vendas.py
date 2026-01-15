@@ -144,7 +144,8 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
             'CUPIM A': [1772],
             'CUPIM B': [1804, 1456, 1926, 1984],
             'FIGADO': [1808, 1455, 1818, 1910, 1823, 1537, 1505, 1408, 1373, 1458, 1508,
-                       1525, 1454, 1801, 1528, 1530, 1502, 1945, 1967, 1998, 1978, 1983],
+                       1525, 1454, 1801, 1528, 1530, 1502, 1945, 1967, 1998, 1978, 1983,
+                       2018],
             'FILÉ DE PEITO DE FRANGO': [1632, 1386, 1935],
             'FILÉ MIGNON': [1812, 1919],
             'FRALDA': [1797, 1925],
@@ -180,7 +181,7 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
             'PURURUCA 60G': [1288, 1289, 1287],
             'PURURUCA 1KG': [1265, 812],
             'RABO BOV': [1828, 1839, 1876, 1861, 1116, 1705, 1531, 1906, 1826, 1911, 1882,
-                        1571, 1335, 1963],
+                        1571, 1335, 1963, 1909, 1473],
             'RABO SUINO SALGADA': [851, 1429, 748, 1449],
             'SALAME UAI': [1495, 1500, 1496, 1497, 1498, 1499],
             'SALSICHA': [759, 1189, 816, 1162],
@@ -897,7 +898,8 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
             'CUPIM A': [1772],
             'CUPIM B': [1804, 1456, 1926, 1984],
             'FIGADO': [1808, 1455, 1818, 1910, 1823, 1537, 1505, 1408, 1373, 1458, 1508,
-                       1525, 1454, 1801, 1528, 1530, 1502, 1945, 1967, 1998, 1978, 1983],
+                       1525, 1454, 1801, 1528, 1530, 1502, 1945, 1967, 1998, 1978, 1983,
+                       2018],
             'FILÉ DE PEITO DE FRANGO': [1632, 1386, 1935],
             'FILÉ MIGNON': [1812, 1919],
             'FRALDA': [1797, 1925],
@@ -933,7 +935,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
             'PURURUCA 60G': [1288, 1289, 1287],
             'PURURUCA 1KG': [1265, 812],
             'RABO BOV': [1828, 1839, 1876, 1861, 1116, 1705, 1531, 1906, 1826, 1911, 1882,
-                        1571, 1335, 1963],
+                        1571, 1335, 1963, 1909, 1473],
             'RABO SUINO SALGADA': [851, 1429, 748, 1449],
             'SALAME UAI': [1495, 1500, 1496, 1497, 1498, 1499],
             'SALSICHA': [759, 1189, 816, 1162],
@@ -1096,7 +1098,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
                 pass
 
 # Configuração principal (mantida igual)
-file_path = r"C:\Users\win11\OneDrive\Documentos\Margens de fechamento\MRG_251130 - Fechamento.xlsx"
+file_path = r"C:\Users\win11\Downloads\MRG_260112 - wapp.xlsx"
 sheet_name = "Base (3,5%)"
 output_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
 items_per_page = 5
