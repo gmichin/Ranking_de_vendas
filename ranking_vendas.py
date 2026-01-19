@@ -174,7 +174,7 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
             'PALETA': [1953, 1964, 1923, 1975],
             'PÉ SALGADO': [1427, 836, 852, 1450],
             'PEITO BOV': [1815, 1875, 1789, 1952],
-            'PERNIL SUINO C/OSSO C/PELE': [1942, 1635, 1724],
+            'PERNIL SUINO C/OSSO C/PELE': [1942, 1635, 1724, 1570, 1756],
             'PICANHA B': [1946, 1950],
             'PIZZA': [1989, 1990],
             'PONTA SALGADA': [1425, 750],
@@ -928,7 +928,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
             'PALETA': [1953, 1964, 1923, 1975],
             'PÉ SALGADO': [1427, 836, 852, 1450],
             'PEITO BOV': [1815, 1875, 1789, 1952],
-            'PERNIL SUINO C/OSSO C/PELE': [1942, 1635, 1724],
+            'PERNIL SUINO C/OSSO C/PELE': [1942, 1635, 1724, 1570, 1756],
             'PICANHA B': [1946, 1950],
             'PIZZA': [1989, 1990],
             'PONTA SALGADA': [1425, 750],
@@ -1098,7 +1098,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
                 pass
 
 # Configuração principal (mantida igual)
-file_path = r"C:\Users\win11\Downloads\MRG_260112 - wapp.xlsx"
+file_path = r"C:\Users\win11\Downloads\MRG_260118 - wapp.xlsx"
 sheet_name = "Base (3,5%)"
 output_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
 items_per_page = 5
