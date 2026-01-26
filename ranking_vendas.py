@@ -138,7 +138,7 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
             'COXA C/ SOBRECOXA': [1519, 1956],
             'COXÃO DURO': [1920, 8003, 1803, 1949, 1795],
             'COXÃO MOLE': [1831, 8002, 1948, 1976, 1375],
-            'COXINHA DA ASA': [1604, 1546, 8005],
+            'COXINHA DA ASA': [1604, 1546, 8005, 1722],
             'CUPIM A': [1772],
             'CUPIM B': [1804, 1456, 1926, 1984],
             'FIGADO': [1808, 1455, 1818, 1910, 1823, 1537, 1505, 1408, 1373, 1458, 1508,
@@ -155,9 +155,7 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
             'LINGUIÇA CALABRESA AURORA': [788, 1974],
             'LINGUIÇA CALABRESA SADIA': [1339, 807, 1848, 1847],
             'LINGUIÇA CALABRESA PAMPLONA': [9165, 910],
-            'MARGARINA DORIANA COM SAL': [1161, 1981],
-            'MARGARINA QUALLY COM SAL': [826, 811],
-            'MEIO DA ASA': [2311, 1937],
+            'MEIO DA ASA': [2311, 1937, 2014],
             'MINI CHICKEN': [1024, 1994],
             'MINI LASANHA': [1992, 1985],
             'MOCOTÓ': [1539, 1460, 1342, 1540, 1675, 1850, 1827, 1821, 1853, 1407, 1723,
@@ -172,7 +170,6 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
             'PICANHA B': [1946, 1950],
             'PIZZA': [1989, 1990],
             'PURURUCA 60G': [1288, 1289, 1287],
-            'PURURUCA 1KG': [1265, 812],
             'RABO BOV': [1828, 1839, 1876, 1861, 1116, 1705, 1531, 1906, 1826, 1911, 1882,
                         1571, 1335, 1963, 1909, 1473, 1481],
             'SALAME UAI': [1495, 1500, 1496, 1497, 1498, 1499],
@@ -883,7 +880,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
             'COXA C/ SOBRECOXA': [1519, 1956],
             'COXÃO DURO': [1920, 8003, 1803, 1949, 1795],
             'COXÃO MOLE': [1831, 8002, 1948, 1976, 1375],
-            'COXINHA DA ASA': [1604, 1546, 8005],
+            'COXINHA DA ASA': [1604, 1546, 8005, 1722],
             'CUPIM A': [1772],
             'CUPIM B': [1804, 1456, 1926, 1984],
             'FIGADO': [1808, 1455, 1818, 1910, 1823, 1537, 1505, 1408, 1373, 1458, 1508,
@@ -900,9 +897,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
             'LINGUIÇA CALABRESA AURORA': [788, 1974],
             'LINGUIÇA CALABRESA SADIA': [1339, 807, 1848, 1847],
             'LINGUIÇA CALABRESA PAMPLONA': [9165, 910],
-            'MARGARINA DORIANA COM SAL': [1161, 1981],
-            'MARGARINA QUALLY COM SAL': [826, 811],
-            'MEIO DA ASA': [2311, 1937],
+            'MEIO DA ASA': [2311, 1937, 2014],
             'MINI CHICKEN': [1024, 1994],
             'MINI LASANHA': [1992, 1985],
             'MOCOTÓ': [1539, 1460, 1342, 1540, 1675, 1850, 1827, 1821, 1853, 1407, 1723,
@@ -917,7 +912,6 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
             'PICANHA B': [1946, 1950],
             'PIZZA': [1989, 1990],
             'PURURUCA 60G': [1288, 1289, 1287],
-            'PURURUCA 1KG': [1265, 812],
             'RABO BOV': [1828, 1839, 1876, 1861, 1116, 1705, 1531, 1906, 1826, 1911, 1882,
                         1571, 1335, 1963, 1909, 1473, 1481],
             'SALAME UAI': [1495, 1500, 1496, 1497, 1498, 1499],
@@ -1080,7 +1074,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
                 pass
 
 # Configuração principal (mantida igual)
-file_path = r"C:\Users\win11\Downloads\MRG_260120 - wapp.xlsx"
+file_path = r"C:\Users\win11\Downloads\MRG_260125 - wapp.xlsx"
 sheet_name = "Base (3,5%)"
 output_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
 items_per_page = 5
