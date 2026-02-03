@@ -153,7 +153,7 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
             'LINGUIÇA CALABRESA AURORA': [788, 1974],
             'LINGUIÇA CALABRESA SADIA': [1339, 807, 1848, 1847],
             'LINGUIÇA CALABRESA PAMPLONA': [9165, 910],
-            'MEIO DA ASA': [2311, 1937, 2014],
+            'MEIO DA ASA': [2311, 1937, 2014, 2039],
             'MINI CHICKEN': [1024, 1994],
             'MINI LASANHA': [1992, 1985],
             'MOCOTÓ': [1539, 1460, 1342, 1540, 1675, 1850, 1827, 1821, 1853, 1407, 1723,
@@ -893,7 +893,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
             'LINGUIÇA CALABRESA AURORA': [788, 1974],
             'LINGUIÇA CALABRESA SADIA': [1339, 807, 1848, 1847],
             'LINGUIÇA CALABRESA PAMPLONA': [9165, 910],
-            'MEIO DA ASA': [2311, 1937, 2014],
+            'MEIO DA ASA': [2311, 1937, 2014, 2039],
             'MINI CHICKEN': [1024, 1994],
             'MINI LASANHA': [1992, 1985],
             'MOCOTÓ': [1539, 1460, 1342, 1540, 1675, 1850, 1827, 1821, 1853, 1407, 1723,
@@ -1070,7 +1070,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
                 pass
 
 # Configuração principal (mantida igual)
-file_path = r"C:\Users\win11\Downloads\MRG_260125 - wapp.xlsx"
+file_path = r"C:\Users\win11\OneDrive\Documentos\Margens de fechamento\2026\MRG_260131 - wapp - v2.xlsx"
 sheet_name = "Base (3,5%)"
 output_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
 items_per_page = 5
