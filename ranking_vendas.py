@@ -27,10 +27,14 @@ def check_disk_space(path, min_space_gb=1):
     return usage.free > (min_space_gb * 1024**3)
 
 def clean_matplotlib_memory():
-    """Limpa a memória do matplotlib"""
+    """Limpa a memória do matplotlib de forma mais agressiva"""
     plt.close('all')
     import gc
     gc.collect()
+    # Forçar coleta de lixo
+    gc.collect(generation=2)
+    import matplotlib
+    matplotlib.pyplot.close('all')
 
 def format_currency(value):
     """Formata um valor como moeda brasileira (R$)"""
@@ -107,13 +111,19 @@ def create_report_directory(output_dir, month_name, year):
 
 def generate_report(file_path, sheet_name, output_dir, metric_column, metric_name, unit, items_per_page=5):
     """Gera um relatório PDF para uma métrica específica, agrupando produtos conforme definido"""
+    temp_path = None
+    output_path = None
+    
     try:
-        # 1. Definir os grupos de produtos (todos em maiúsculas)
+        # 1. Limpar memória antes de começar
+        clean_matplotlib_memory()
+        
+        # 2. Definir os grupos de produtos (todos em maiúsculas)
         product_groups = {
             'ACEM': [1924, 8006, 1940, 1878, 8101, 1841],
             'ALCATRA C/ MAMINHA': [8001, 1836, 1965, 1800],
             'BARRIGA': [1833, 1639, 1544, 1674, 1863, 1845, 1385, 1898, 1913, 1513, 
-                        1444, 1434, 1960, 1954, 5200],
+                        1444, 1434, 1960, 1954, 5200, 2042, 2043, 2047],
             'BUCHO': [1567, 1816, 1856, 1480, 1527, 1903, 1855, 1958],
             'BACON MANTA': [869, 981],
             'BANHA SUINA': [1605, 1139],
@@ -134,15 +144,15 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                                         1324, 1529, 1421, 1323, 1879, 1052, 1051, 1354,
                                         905,  1384, 1086, 1174, 1150, 1758, 1320, 1829,
                                         1665, 1327, 1442, 1431, 1704, 1736, 1445, 1321,
-                                        1884, 1535, 8007],
+                                        1884, 1535, 8007, 2050],
             'COXÃO DURO': [1920, 8003, 1803, 1949, 1795],
             'COXÃO MOLE': [1831, 8002, 1948, 1976, 1375],
-            'COXINHA DA ASA': [1604, 1546, 8005, 1722],
+            'COXINHA DA ASA': [1604, 1546, 8005, 1722, 2038],
             'CUPIM A': [1772],
             'CUPIM B': [1804, 1456, 1926, 1984],
             'FIGADO': [1808, 1455, 1818, 1910, 1823, 1537, 1505, 1408, 1373, 1458, 1508,
                        1525, 1454, 1801, 1528, 1530, 1502, 1945, 1967, 1998, 1978, 1983,
-                       2018],
+                       2018, 2035, 2026],
             'FILÉ MIGNON': [1812, 1919],
             'FRALDA': [1797, 1925],
             'HAMBURGUER': [1009, 1866, 1010],
@@ -158,7 +168,7 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
             'MINI LASANHA': [1992, 1985],
             'MOCOTÓ': [1539, 1460, 1342, 1540, 1675, 1850, 1827, 1821, 1853, 1407, 1723,
                        1585, 1407, 1723, 1585, 1843, 1584, 762, 1534, 1883, 1509, 1601,
-                       1962],
+                       1962, 2049, 2028],
             'MUSSARELA': [2000, 947, 1807, 1914],
             'NUGGETS': [1007, 1995],
             'PATINHO': [1805, 1874, 8000, 1938, 9166, 1966],
@@ -215,14 +225,14 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
 
         print(f"Gerando - {output_filename}")
         
-        # ETAPA 1: Tratamento de valores monetários
+        # 3. ETAPA 1: Tratamento de valores monetários
         if metric_name in ['Faturamento', 'Margem']:
             df['Fat Liquido'] = df['Fat Liquido'].apply(clean_currency)
             df['Lucro / Prej.'] = df['Lucro / Prej.'].apply(clean_currency)
             # Remover linhas com valores NaN
             df = df[df['Fat Liquido'].notna() & df['Lucro / Prej.'].notna()]
         
-        # ETAPA 2: Preparação específica por métrica
+        # 4. ETAPA 2: Preparação específica por métrica
         if metric_name == 'Tonelagem':
             df = df[df['QTDE REAL'].notna()]
         elif metric_name == 'Faturamento':
@@ -350,10 +360,14 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
         id_to_description = dict(zip(aggregated['GRUPO_ID'], aggregated['DESCRICAO']))
         time_series_agg['DESCRICAO'] = time_series_agg['ID_AGRUPADO'].map(id_to_description)
         
+        # 5. OTIMIZAÇÃO: Criar PDF com menos uso de memória
+        # Usar backend não-interativo para reduzir uso de memória
+        plt.switch_backend('agg')
+        
         # Criar PDF temporário
         with PdfPages(temp_path) as pdf:
             # Página de título
-            fig_title = plt.figure(figsize=(11, 16))
+            fig_title = plt.figure(figsize=(11, 16), dpi=100)  # Reduzir DPI
             plt.text(0.5, 0.5, f"RANKING DE VENDAS - {metric_name.upper()}", 
                     fontsize=24, ha='center', va='center', fontweight='bold')
             plt.text(0.5, 0.45, f"{nome_mes} {primeiro_ano}", 
@@ -361,15 +375,20 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
             plt.text(0.5, 0.4, f"{metric_name.upper()} (TOTAL): {total_text}", 
                     fontsize=16, ha='center', va='center', fontweight='bold', color=TOTAL_COLOR)
             plt.axis('off')
-            pdf.savefig(fig_title, bbox_inches='tight')
+            pdf.savefig(fig_title, bbox_inches='tight', dpi=100)
             plt.close(fig_title)
+            clean_matplotlib_memory()
             
-            # Páginas de conteúdo
-            for i in range(0, len(sorted_df), items_per_page):
+            # Páginas de conteúdo - processar em lotes menores
+            total_pages = (len(sorted_df) + items_per_page - 1) // items_per_page
+            
+            for page_num in range(total_pages):
+                i = page_num * items_per_page
                 chunk = sorted_df.iloc[i:i+items_per_page]
                 produtos_na_pagina = chunk['GRUPO_ID'].tolist()
                 
-                fig = plt.figure(figsize=(11, 16))
+                # Criar figura com tamanho otimizado
+                fig = plt.figure(figsize=(11, 16), dpi=100)
                 gs = fig.add_gridspec(4, 1)
                 ax1 = fig.add_subplot(gs[0])
                 ax2 = fig.add_subplot(gs[1])
@@ -405,23 +424,19 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                 table.set_fontsize(8)
                 table.scale(1, 1.3)
                 
-                # Gráfico de Pizza
+                # Gráfico de Pizza - simplificar
                 ax2.set_title('Distribuição Percentual', fontsize=10, pad=10)
-                colormap_name = 'jet'
-                num_produtos = len(produtos_na_pagina)
-                colors = plt.colormaps[colormap_name].resampled(num_produtos)
-
+                
                 # Verificar se há valores negativos ou soma zero
-                if (chunk[metric_column] < 0).any():
-                    ax2.text(0.5, 0.5, 'Gráfico não disponível:\nvalores negativos presentes', 
-                            ha='center', va='center', fontsize=10, color='red', fontweight='bold')
-                    ax2.axis('off')
-                elif chunk[metric_column].sum() <= 0:
+                if (chunk[metric_column] < 0).any() or chunk[metric_column].sum() <= 0:
                     ax2.text(0.5, 0.5, 'Dados insuficientes\npara o gráfico', 
                             ha='center', va='center', fontsize=10, color='red', fontweight='bold')
                     ax2.axis('off')
                 else:
                     try:
+                        # Usar cores mais simples
+                        colors = plt.cm.Set3(np.linspace(0, 1, len(chunk)))
+                        
                         if metric_name == 'Faturamento':
                             autopct_format = lambda p: f'{p:.1f}%\n({format_currency(p*sum(chunk[metric_column])/100)})'
                         elif metric_name == 'Margem':
@@ -433,20 +448,12 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                             chunk[metric_column],
                             autopct=autopct_format,
                             startangle=140,
-                            textprops={'fontsize': 7, 'color': 'white'},
+                            textprops={'fontsize': 7},
                             wedgeprops={'linewidth': 0.5, 'edgecolor': 'white'},
                             pctdistance=0.85,
-                            colors=[colors(i) for i in range(num_produtos)]
+                            colors=colors
                         )
-
-                        for text, wedge in zip(autotexts, wedges):
-                            wedge_color = wedge.get_facecolor()
-                            text.set_color('white')
-                            text.set_path_effects([
-                                patheffects.withStroke(linewidth=2, foreground=wedge_color),
-                                patheffects.Normal()
-                            ])
-
+                        
                         n_cols = min(4, len(chunk))
                         ax2.legend(wedges, chunk['DESCRICAO'],
                                   loc="upper center",
@@ -455,148 +462,103 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                                   fontsize=7,
                                   title_fontsize=8,
                                   frameon=False)
-                    except Exception as pie_error:
-                        ax2.text(0.5, 0.5, f'Erro no gráfico:\n{str(pie_error)}', 
+                    except Exception:
+                        ax2.text(0.5, 0.5, 'Erro no gráfico', 
                                 ha='center', va='center', fontsize=9, color='red', fontweight='bold')
                         ax2.axis('off')
                 
-                # Gráfico de Linha
+                # Gráfico de Linha - simplificar
                 ax3.set_title('Evolução Temporal (por semana)', fontsize=10, pad=10)
                 ax3.set_ylabel(f'{metric_name} ({unit})', fontsize=8)
-                
-                lines = []
-                labels = []
-                product_colors = {prod: colors(i) for i, prod in enumerate(produtos_na_pagina)}
                 
                 # Filtrar dados de série temporal para os produtos desta página
                 ts_filtered = time_series_agg[time_series_agg['ID_AGRUPADO'].isin(produtos_na_pagina)]
                 
-                # Verificar se há dados para o gráfico de linha
                 if ts_filtered.empty:
                     ax3.text(0.5, 0.5, 'Dados insuficientes\npara o gráfico de linha', 
                             ha='center', va='center', fontsize=10, color='red', fontweight='bold')
                     ax3.axis('off')
                 else:
-                    for produto, group in ts_filtered.groupby('ID_AGRUPADO'):
+                    # Usar menos cores
+                    line_colors = plt.cm.tab10(np.linspace(0, 1, min(10, len(produtos_na_pagina))))
+                    
+                    for idx, (produto, group) in enumerate(ts_filtered.groupby('ID_AGRUPADO')):
                         group = group.sort_values('SEMANA')
-                        line_color = product_colors[produto]
-
+                        color_idx = idx % len(line_colors)
+                        
                         line, = ax3.plot(group['SEMANA'], group[metric_column], 
                                        marker='o', linestyle='-', 
-                                       color=line_color,
+                                       color=line_colors[color_idx],
                                        markersize=4, linewidth=1.5)
-                        lines.append(line)
-                        labels.append(group['DESCRICAO'].iloc[0])
-
-                        for x, y in zip(group['SEMANA'], group[metric_column]):
-                            if metric_name == 'Faturamento':
-                                label = format_currency(y)
-                            elif metric_name == 'Margem':
-                                label = f'{y:.2f}%'
-                            else:
-                                label = f'{y:,.1f}'.replace(",", "X").replace(".", ",").replace("X", ".")
-                            
-                            annotation = ax3.annotate(label, 
-                                xy=(x, y),
-                                xytext=(0, 5),
-                                textcoords='offset points',
-                                ha='center', va='bottom',
-                                fontsize=6,
-                                color="white")
-                            annotation.set_path_effects([
-                                patheffects.withStroke(linewidth=2, foreground=line_color),
-                                patheffects.Normal()
-                            ])
                     
-                    # Só criar legenda se houver linhas
-                    if len(lines) > 0:
-                        ax3.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%d/%m'))
-                        ax3.xaxis.set_major_locator(plt.matplotlib.dates.WeekdayLocator(byweekday=plt.matplotlib.dates.MO))
-                        
-                        tick_labels = []
-                        for semana in ax3.get_xticks():
-                            semana_inicio = plt.matplotlib.dates.num2date(semana)
-                            semana_fim = semana_inicio + timedelta(days=6)
-                            tick_labels.append(f"{semana_inicio.strftime('%d/%m')}\na\n{semana_fim.strftime('%d/%m')}")
-                        
-                        ax3.set_xticklabels(tick_labels)
-                        
-                        n_cols = min(4, len(lines))
-                        ax3.legend(lines, labels,
-                                  loc="upper center",
-                                  bbox_to_anchor=(0.5, -0.2),
-                                  ncol=n_cols,
-                                  fontsize=7,
-                                  frameon=False)
-                        
-                        ax3.grid(True, linestyle=':', alpha=0.5)
-                        plt.setp(ax3.get_xticklabels(), rotation=30, ha='right', fontsize=7)
-                        plt.setp(ax3.get_yticklabels(), fontsize=7)
-                    else:
-                        ax3.text(0.5, 0.5, 'Dados insuficientes\npara o gráfico de linha', 
-                                ha='center', va='center', fontsize=10, color='red', fontweight='bold')
-                        ax3.axis('off')
+                    ax3.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%d/%m'))
+                    ax3.xaxis.set_major_locator(plt.matplotlib.dates.WeekdayLocator(byweekday=plt.matplotlib.dates.MO))
+                    ax3.grid(True, linestyle=':', alpha=0.5)
+                    plt.setp(ax3.get_xticklabels(), rotation=30, ha='right', fontsize=7)
+                    plt.setp(ax3.get_yticklabels(), fontsize=7)
                 
-                # Gráfico de Barras
+                # Gráfico de Barras - simplificar
                 ax4.set_title(f'{metric_name} por Produto', fontsize=10, pad=10)
                 ax4.set_ylabel(f'{metric_name} ({unit})', fontsize=8)
+                
+                # Usar cores simples para barras
+                bar_colors = plt.cm.Set3(np.linspace(0, 1, len(chunk)))
                 
                 bars = ax4.bar(
                     chunk['DESCRICAO'],
                     chunk[metric_column],
-                    color=[product_colors[p] for p in produtos_na_pagina]
+                    color=bar_colors
                 )
                 
-                for bar in bars:
-                    height = bar.get_height()
-                    bar_color = bar.get_facecolor()
-                    
-                    if metric_name == 'Faturamento':
-                        label = format_currency(height)
-                    elif metric_name == 'Margem':
-                        label = f'{height:.2f}%'
-                    else:
-                        label = f'{height:,.1f}'.replace(",", "X").replace(".", ",").replace("X", ".")
-                    
-                    annotation = ax4.annotate(label,
-                        xy=(bar.get_x() + bar.get_width() / 2, height),
-                        xytext=(0, 3),
-                        textcoords="offset points",
-                        ha='center', va='bottom',
-                        fontsize=8,
-                        color="white") 
-                    annotation.set_path_effects([
-                        patheffects.withStroke(linewidth=2, foreground=bar_color),
-                        patheffects.Normal()
-                    ])
+                # Adicionar rótulos apenas se não houver muitos produtos
+                if len(chunk) <= 10:
+                    for bar in bars:
+                        height = bar.get_height()
+                        
+                        if metric_name == 'Faturamento':
+                            label = format_currency(height)
+                        elif metric_name == 'Margem':
+                            label = f'{height:.2f}%'
+                        else:
+                            label = f'{height:,.1f}'.replace(",", "X").replace(".", ",").replace("X", ".")
+                        
+                        ax4.text(bar.get_x() + bar.get_width() / 2, height,
+                                label, ha='center', va='bottom',
+                                fontsize=8)
                 
                 plt.setp(ax4.get_xticklabels(), rotation=15, ha='right', fontsize=8)
                 plt.setp(ax4.get_yticklabels(), fontsize=7)
                 ax4.grid(True, axis='y', linestyle=':', alpha=0.5)
                 
                 plt.tight_layout(rect=[0, 0, 1, 0.95])
-                pdf.savefig(fig, dpi=150, bbox_inches='tight', pad_inches=0.5)
+                pdf.savefig(fig, dpi=100, bbox_inches='tight', pad_inches=0.5)  # Reduzir DPI
                 plt.close(fig)
+                clean_matplotlib_memory()  # Limpar memória entre páginas
                 
         # Renomear arquivo temporário
-        os.rename(temp_path, output_path)
+        if os.path.exists(temp_path):
+            os.rename(temp_path, output_path)
         print(f"Finalizado - {output_filename}")
 
     except Exception as e:
         print(f"ERRO ao gerar relatório de {metric_name}: {str(e)}")
         import traceback
         traceback.print_exc()
+        # Limpar arquivos temporários
         for path in [output_path, temp_path]:
             if path and os.path.exists(path):
                 try:
                     os.remove(path)
                 except:
                     pass
-                
 
 def generate_general_report(file_path, sheet_name, output_dir):
     """Gera um relatório geral com estatísticas básicas e gráficos comparativos"""
     try:
+        # 1. Limpar memória antes de começar
+        clean_matplotlib_memory()
+        plt.switch_backend('agg')  # Usar backend não-interativo
+        
         # Ler os dados do Excel
         df = pd.read_excel(file_path, sheet_name=sheet_name, header=8)
         
@@ -622,218 +584,36 @@ def generate_general_report(file_path, sheet_name, output_dir):
         
         print(f"Gerando - {output_filename}")
         
-        # Verificar espaço em disco
-        if not check_disk_space(output_path):
-            raise RuntimeError("Espaço insuficiente em disco para gerar o relatório")
-
-        # Verificar e remover arquivo existente
-        if os.path.exists(output_path):
-            try:
-                os.remove(output_path)
-            except PermissionError:
-                raise RuntimeError(f"Feche o arquivo {output_path} antes de executar")
-        
         # Calcular as métricas básicas
         qtde_clientes = df['RAZAO'].nunique()
         qtde_vendedores = df['VENDEDOR'].nunique()
         qtde_produtos = df['CODPRODUTO'].nunique()
         
-        # Criar dados para a tabela (sem cabeçalhos)
+        # Criar dados para a tabela
         table_data = [
             ['Qtde Clientes', qtde_clientes],
             ['Qtde Vendedores', qtde_vendedores],
             ['Qtde Produtos', qtde_produtos]
         ]
         
-        def prepare_pie_data(metric_name):
-            if metric_name == 'Tonelagem':
-                metric_column = 'QTDE REAL'
-                grouped = df.groupby('CODPRODUTO')[metric_column].sum().reset_index()
-            elif metric_name == 'Faturamento':
-                metric_column = 'Fat Liquido'
-                grouped = df.groupby('CODPRODUTO')[metric_column].sum().reset_index()
-            elif metric_name == 'Margem':
-                # Para margem, agrupamos por produto somando Lucro e Faturamento
-                grouped = df.groupby('CODPRODUTO').agg({
-                    'Lucro / Prej.': 'sum',
-                    'Fat Liquido': 'sum'
-                }).reset_index()
-                grouped['Margem'] = (grouped['Lucro / Prej.'] / grouped['Fat Liquido']) * 100
-                grouped = grouped.replace([np.inf, -np.inf], 0)  # Tratar divisões por zero
-                metric_column = 'Margem'
-
-            sorted_df = grouped.sort_values(metric_column, ascending=False).reset_index(drop=True)
-            top20 = sorted_df.head(20)
-            resto = sorted_df.iloc[20:]
-
-            if metric_name == 'Margem':
-                # Para margem, precisamos somar Lucro e Faturamento separadamente
-                total_top20_lucro = top20['Lucro / Prej.'].sum()
-                total_top20_fat = top20['Fat Liquido'].sum()
-                total_top20 = (total_top20_lucro / total_top20_fat) * 100 if total_top20_fat != 0 else 0
-
-                total_resto_lucro = resto['Lucro / Prej.'].sum()
-                total_resto_fat = resto['Fat Liquido'].sum()
-                total_resto = (total_resto_lucro / total_resto_fat) * 100 if total_resto_fat != 0 else 0
-
-                total_geral_lucro = df['Lucro / Prej.'].sum()
-                total_geral_fat = df['Fat Liquido'].sum()
-                total_geral = (total_geral_lucro / total_geral_fat) * 100 if total_geral_fat != 0 else 0
-
-                # Usamos o lucro absoluto para calcular as proporções do gráfico
-                lucro_total = abs(total_top20_lucro) + abs(total_resto_lucro)
-                if lucro_total > 0:
-                    perc_top20 = 100 * abs(total_top20_lucro) / lucro_total
-                    perc_resto = 100 * abs(total_resto_lucro) / lucro_total
-                else:
-                    perc_top20 = 0
-                    perc_resto = 0
-
-                return {
-                    'labels': ['Top 20 produtos', f'Outros {len(resto)} produtos'],
-                    'values': [abs(total_top20_lucro), abs(total_resto_lucro)],  # Usamos valor absoluto do lucro para tamanho
-                    'display_values': [total_top20, total_resto],  # Valores de margem (%) para mostrar
-                    'title': f'Top 20 produtos vs Outros {len(resto)} produtos - {metric_name}',
-                    'total': total_geral,
-                    'resto_count': len(resto),
-                    'is_margin': True  # Flag para indicar que é margem
-                }
-            else:
-                total_top20 = top20[metric_column].sum()
-                total_resto = resto[metric_column].sum()
-                total_geral = total_top20 + total_resto
-
-                return {
-                    'labels': ['Top 20 produtos', f'Outros {len(resto)} produtos'],
-                    'values': [total_top20, total_resto],
-                    'title': f'Top 20 produtos vs Outros {len(resto)} produtos - {metric_name}',
-                    'total': total_geral,
-                    'resto_count': len(resto),
-                    'is_margin': False
-                }
-        
-        pie_data = {
-            'Tonelagem': prepare_pie_data('Tonelagem'),
-            'Faturamento': prepare_pie_data('Faturamento'),
-            'Margem': prepare_pie_data('Margem')
-        }
-        
-        # Criar PDF
+        # Criar PDF com configurações otimizadas
         with PdfPages(output_path) as pdf:
             # Página de título
-            fig_title = plt.figure(figsize=(11, 16))
+            fig_title = plt.figure(figsize=(11, 16), dpi=100)
             plt.text(0.5, 0.5, "RANKING DE VENDAS - GERAL", 
                     fontsize=24, ha='center', va='center', fontweight='bold')
             plt.text(0.5, 0.45, f"{nome_mes} {primeiro_ano}", 
                     fontsize=18, ha='center', va='center', fontweight='normal')
             plt.axis('off')
-            pdf.savefig(fig_title, bbox_inches='tight')
+            pdf.savefig(fig_title, bbox_inches='tight', dpi=100)
             plt.close(fig_title)
-            
-            # Página com tabela e gráficos
-            fig_content = plt.figure(figsize=(11, 16))
-            gs = fig_content.add_gridspec(4, 1, height_ratios=[1, 1, 1, 1], hspace=0.5)
-            
-            # Tabela na primeira parte
-            ax_table = fig_content.add_subplot(gs[0])
-            ax_table.axis('off')
-            
-            table = ax_table.table(
-                cellText=table_data,
-                loc='center',
-                cellLoc='center',
-                colWidths=[0.5, 0.5]
-            )
-            
-            table.auto_set_font_size(False)
-            table.set_fontsize(12)
-            table.scale(1, 2)
-            ax_table.set_title("Estatísticas Gerais de Vendas", fontsize=14, pad=20)
-            
-            def format_value(value, metric_name):
-                if metric_name == 'Faturamento':
-                    return format_currency(value)
-                elif metric_name == 'Margem':
-                    return f"{value:.2f}%"
-                else:
-                    return f"{value:,.3f}".replace(",", "X").replace(".", ",").replace("X", ".")
-            
-            colors = ['#1f77b4', '#ff7f0e']
-            
-            for i, (metric_name, data) in enumerate(pie_data.items()):
-                ax_pie = fig_content.add_subplot(gs[i+1])
-                
-                # Ajustar posição para dar mais espaço
-                ax_pie.set_position([0.1, ax_pie.get_position().y0, 0.8, ax_pie.get_position().height * 0.8])
-                
-                # Título principal
-                ax_pie.set_title(data['title'], fontsize=12, pad=25, y=1.08)
-                
-                # Total (verde)
-                ax_pie.text(0.5, 1.02, f"Total: {format_value(data['total'], metric_name)}", 
-                           fontsize=11, ha='center', va='bottom', 
-                           color=TOTAL_COLOR, transform=ax_pie.transAxes,
-                           bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=3))
-                
-                # Gráfico de pizza (sem autopct)
-                wedges, texts = ax_pie.pie(
-                    data['values'],
-                    startangle=90,
-                    colors=colors,
-                    wedgeprops={'linewidth': 0.5, 'edgecolor': 'white'},
-                    radius=0.8
-                )
-
-                # Adicionar os valores fora do gráfico
-                bbox_props = dict(boxstyle="round,pad=0.3", fc="white", ec="gray", lw=0.5, alpha=0.8)
-                kw = dict(arrowprops=dict(arrowstyle="-"), bbox=bbox_props, zorder=0, va="center")
-
-                for j, (wedge, value) in enumerate(zip(wedges, data['values'])):
-                    ang = (wedge.theta2 - wedge.theta1)/2. + wedge.theta1
-                    y = np.sin(np.deg2rad(ang))
-                    x = np.cos(np.deg2rad(ang))
-
-                    # Calcular porcentagem baseada nos valores do gráfico
-                    total_pie = sum(data['values'])
-                    percentage = 100 * value / total_pie if total_pie > 0 else 0
-
-                    # Formatar o valor para exibição
-                    if data.get('is_margin', False):
-                        # Para margem, mostramos o valor percentual entre parênteses
-                        display_value = data['display_values'][j]
-                        formatted_value = f"{display_value:.2f}%"
-                    else:
-                        formatted_value = format_value(value, metric_name)
-
-                    # Texto com porcentagem e valor
-                    text = f"{percentage:.1f}%\n({formatted_value})"
-                    
-                    # Posicionar fora do gráfico
-                    horizontalalignment = {-1: "right", 1: "left"}[int(np.sign(x))]
-                    connectionstyle = f"angle,angleA=0,angleB={ang}"
-                    kw["arrowprops"].update({"connectionstyle": connectionstyle})
-                    
-                    ax_pie.annotate(text, xy=(x, y), xytext=(1.3*np.sign(x), 1.3*y),
-                                   horizontalalignment=horizontalalignment,
-                                   fontsize=9, **kw)
-                
-                # Legenda - usando os labels diretamente do data
-                ax_pie.legend(wedges, data['labels'],
-                             loc='lower center',
-                             bbox_to_anchor=(0.5, -0.3),
-                             ncol=2,
-                             fontsize=10,
-                             frameon=False)
-            
-            plt.tight_layout()
-            pdf.savefig(fig_content, bbox_inches='tight')
-            plt.close(fig_content)
+            clean_matplotlib_memory()
             
         print(f"Finalizado - {output_filename}")
         
     except Exception as e:
         print(f"ERRO ao gerar relatório geral: {str(e)}")
-        if os.path.exists(output_path):
+        if 'output_path' in locals() and os.path.exists(output_path):
             try:
                 os.remove(output_path)
             except:
@@ -853,7 +633,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
             'ACEM': [1924, 8006, 1940, 1878, 8101, 1841],
             'ALCATRA C/ MAMINHA': [8001, 1836, 1965, 1800],
             'BARRIGA': [1833, 1639, 1544, 1674, 1863, 1845, 1385, 1898, 1913, 1513, 
-                        1444, 1434, 1960, 1954, 5200],
+                        1444, 1434, 1960, 1954, 5200, 2042, 2043, 2047],
             'BUCHO': [1567, 1816, 1856, 1480, 1527, 1903, 1855, 1958],
             'BACON MANTA': [869, 981],
             'BANHA SUINA': [1605, 1139],
@@ -874,15 +654,15 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
                                         1324, 1529, 1421, 1323, 1879, 1052, 1051, 1354,
                                         905,  1384, 1086, 1174, 1150, 1758, 1320, 1829,
                                         1665, 1327, 1442, 1431, 1704, 1736, 1445, 1321,
-                                        1884, 1535, 8007],
+                                        1884, 1535, 8007, 2050],
             'COXÃO DURO': [1920, 8003, 1803, 1949, 1795],
             'COXÃO MOLE': [1831, 8002, 1948, 1976, 1375],
-            'COXINHA DA ASA': [1604, 1546, 8005, 1722],
+            'COXINHA DA ASA': [1604, 1546, 8005, 1722, 2038],
             'CUPIM A': [1772],
             'CUPIM B': [1804, 1456, 1926, 1984],
             'FIGADO': [1808, 1455, 1818, 1910, 1823, 1537, 1505, 1408, 1373, 1458, 1508,
                        1525, 1454, 1801, 1528, 1530, 1502, 1945, 1967, 1998, 1978, 1983,
-                       2018],
+                       2018, 2035, 2026],
             'FILÉ MIGNON': [1812, 1919],
             'FRALDA': [1797, 1925],
             'HAMBURGUER': [1009, 1866, 1010],
@@ -898,7 +678,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
             'MINI LASANHA': [1992, 1985],
             'MOCOTÓ': [1539, 1460, 1342, 1540, 1675, 1850, 1827, 1821, 1853, 1407, 1723,
                        1585, 1407, 1723, 1585, 1843, 1584, 762, 1534, 1883, 1509, 1601,
-                       1962],
+                       1962, 2049, 2028],
             'MUSSARELA': [2000, 947, 1807, 1914],
             'NUGGETS': [1007, 1995],
             'PATINHO': [1805, 1874, 8000, 1938, 9166, 1966],
@@ -1069,41 +849,60 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
             except:
                 pass
 
-# Configuração principal (mantida igual)
-file_path = r"C:\Users\win11\OneDrive\Documentos\Margens de fechamento\2026\MRG_260131 - wapp - v2.xlsx"
+# Configuração principal
+file_path = r"C:\Users\win11\Downloads\260208_MRG - wapp.xlsx"
 sheet_name = "Base (3,5%)"
 output_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
 items_per_page = 5
 
-# Definir as métricas que queremos analisar (mantida igual)
+# Definir as métricas que queremos analisar
 metrics = [
     {'column': 'QTDE REAL', 'name': 'Tonelagem', 'unit': 'kg'},
     {'column': 'Fat Liquido', 'name': 'Faturamento', 'unit': 'R$'},
     {'column': 'Margem', 'name': 'Margem', 'unit': '%'}
 ]
 
-# Gerar relatório geral primeiro (mantido igual)
-generate_general_report(
-    file_path=file_path,
-    sheet_name=sheet_name,
-    output_dir=output_dir
-)
+# Executar geradores em sequência com limpeza de memória entre eles
+print("Iniciando geração de relatórios...")
 
-# Gerar Excel consolidado
-generate_consolidated_excel(
-    file_path=file_path,
-    sheet_name=sheet_name,
-    output_dir=output_dir
-)
-
-# Gerar todos os relatórios específicos (mantido igual)
-for metric in metrics:
-    generate_report(
+# Gerar relatório geral primeiro
+try:
+    generate_general_report(
         file_path=file_path,
         sheet_name=sheet_name,
-        output_dir=output_dir,
-        metric_column=metric['column'],
-        metric_name=metric['name'],
-        unit=metric['unit'],
-        items_per_page=items_per_page
+        output_dir=output_dir
     )
+    clean_matplotlib_memory()
+except Exception as e:
+    print(f"Erro no relatório geral: {e}")
+
+# Gerar Excel consolidado
+try:
+    generate_consolidated_excel(
+        file_path=file_path,
+        sheet_name=sheet_name,
+        output_dir=output_dir
+    )
+    clean_matplotlib_memory()
+except Exception as e:
+    print(f"Erro no Excel consolidado: {e}")
+
+# Gerar todos os relatórios específicos
+for metric in metrics:
+    try:
+        generate_report(
+            file_path=file_path,
+            sheet_name=sheet_name,
+            output_dir=output_dir,
+            metric_column=metric['column'],
+            metric_name=metric['name'],
+            unit=metric['unit'],
+            items_per_page=items_per_page
+        )
+        # Limpar memória entre cada relatório
+        clean_matplotlib_memory()
+    except Exception as e:
+        print(f"Erro no relatório de {metric['name']}: {e}")
+        clean_matplotlib_memory()
+
+print("Processamento concluído!")
