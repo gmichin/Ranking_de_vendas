@@ -123,7 +123,7 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
             'ACEM': [1924, 8006, 1940, 1878, 8101, 1841],
             'ALCATRA C/ MAMINHA': [8001, 1836, 1965, 1800],
             'BARRIGA': [1833, 1639, 1544, 1674, 1863, 1845, 1385, 1898, 1913, 1513, 
-                        1444, 1434, 1960, 1954, 5200, 2042, 2043, 2047],
+                        1444, 1434, 1960, 1954, 5200, 2042, 2043, 2047, 2051],
             'BUCHO': [1567, 1816, 1856, 1480, 1527, 1903, 1855, 1958],
             'BACON MANTA': [869, 981],
             'BANHA SUINA': [1605, 1139],
@@ -163,7 +163,7 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
             'LINGUIÇA CALABRESA AURORA': [788, 1974],
             'LINGUIÇA CALABRESA SADIA': [1339, 807, 1848, 1847],
             'LINGUIÇA CALABRESA PAMPLONA': [9165, 910],
-            'MEIO DA ASA': [2311, 1937, 2014, 2039],
+            'MEIO DA ASA': [2311, 1937, 2014, 2039, 2052],
             'MINI CHICKEN': [1024, 1994],
             'MINI LASANHA': [1992, 1985],
             'MOCOTÓ': [1539, 1460, 1342, 1540, 1675, 1850, 1827, 1821, 1853, 1407, 1723,
@@ -633,7 +633,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
             'ACEM': [1924, 8006, 1940, 1878, 8101, 1841],
             'ALCATRA C/ MAMINHA': [8001, 1836, 1965, 1800],
             'BARRIGA': [1833, 1639, 1544, 1674, 1863, 1845, 1385, 1898, 1913, 1513, 
-                        1444, 1434, 1960, 1954, 5200, 2042, 2043, 2047],
+                        1444, 1434, 1960, 1954, 5200, 2042, 2043, 2047, 2051],
             'BUCHO': [1567, 1816, 1856, 1480, 1527, 1903, 1855, 1958],
             'BACON MANTA': [869, 981],
             'BANHA SUINA': [1605, 1139],
@@ -673,7 +673,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
             'LINGUIÇA CALABRESA AURORA': [788, 1974],
             'LINGUIÇA CALABRESA SADIA': [1339, 807, 1848, 1847],
             'LINGUIÇA CALABRESA PAMPLONA': [9165, 910],
-            'MEIO DA ASA': [2311, 1937, 2014, 2039],
+            'MEIO DA ASA': [2311, 1937, 2014, 2039, 2052],
             'MINI CHICKEN': [1024, 1994],
             'MINI LASANHA': [1992, 1985],
             'MOCOTÓ': [1539, 1460, 1342, 1540, 1675, 1850, 1827, 1821, 1853, 1407, 1723,
@@ -850,7 +850,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
                 pass
 
 # Configuração principal
-file_path = r"C:\Users\win11\Downloads\260208_MRG - wapp.xlsx"
+file_path = r"C:\Users\win11\Downloads\260215_MRG - wapp.xlsx"
 sheet_name = "Base (3,5%)"
 output_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
 items_per_page = 5
