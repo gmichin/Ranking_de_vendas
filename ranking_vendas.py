@@ -555,10 +555,6 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
 def generate_general_report(file_path, sheet_name, output_dir):
     """Gera um relatório geral com estatísticas básicas e gráficos comparativos"""
     try:
-        # 1. Limpar memória antes de começar
-        clean_matplotlib_memory()
-        plt.switch_backend('agg')  # Usar backend não-interativo
-        
         # Ler os dados do Excel
         df = pd.read_excel(file_path, sheet_name=sheet_name, header=8)
         
@@ -584,36 +580,218 @@ def generate_general_report(file_path, sheet_name, output_dir):
         
         print(f"Gerando - {output_filename}")
         
+        # Verificar espaço em disco
+        if not check_disk_space(output_path):
+            raise RuntimeError("Espaço insuficiente em disco para gerar o relatório")
+
+        # Verificar e remover arquivo existente
+        if os.path.exists(output_path):
+            try:
+                os.remove(output_path)
+            except PermissionError:
+                raise RuntimeError(f"Feche o arquivo {output_path} antes de executar")
+        
         # Calcular as métricas básicas
         qtde_clientes = df['RAZAO'].nunique()
         qtde_vendedores = df['VENDEDOR'].nunique()
         qtde_produtos = df['CODPRODUTO'].nunique()
         
-        # Criar dados para a tabela
+        # Criar dados para a tabela (sem cabeçalhos)
         table_data = [
             ['Qtde Clientes', qtde_clientes],
             ['Qtde Vendedores', qtde_vendedores],
             ['Qtde Produtos', qtde_produtos]
         ]
         
-        # Criar PDF com configurações otimizadas
+        def prepare_pie_data(metric_name):
+            if metric_name == 'Tonelagem':
+                metric_column = 'QTDE REAL'
+                grouped = df.groupby('CODPRODUTO')[metric_column].sum().reset_index()
+            elif metric_name == 'Faturamento':
+                metric_column = 'Fat Liquido'
+                grouped = df.groupby('CODPRODUTO')[metric_column].sum().reset_index()
+            elif metric_name == 'Margem':
+                # Para margem, agrupamos por produto somando Lucro e Faturamento
+                grouped = df.groupby('CODPRODUTO').agg({
+                    'Lucro / Prej.': 'sum',
+                    'Fat Liquido': 'sum'
+                }).reset_index()
+                grouped['Margem'] = (grouped['Lucro / Prej.'] / grouped['Fat Liquido']) * 100
+                grouped = grouped.replace([np.inf, -np.inf], 0)  # Tratar divisões por zero
+                metric_column = 'Margem'
+
+            sorted_df = grouped.sort_values(metric_column, ascending=False).reset_index(drop=True)
+            top20 = sorted_df.head(20)
+            resto = sorted_df.iloc[20:]
+
+            if metric_name == 'Margem':
+                # Para margem, precisamos somar Lucro e Faturamento separadamente
+                total_top20_lucro = top20['Lucro / Prej.'].sum()
+                total_top20_fat = top20['Fat Liquido'].sum()
+                total_top20 = (total_top20_lucro / total_top20_fat) * 100 if total_top20_fat != 0 else 0
+
+                total_resto_lucro = resto['Lucro / Prej.'].sum()
+                total_resto_fat = resto['Fat Liquido'].sum()
+                total_resto = (total_resto_lucro / total_resto_fat) * 100 if total_resto_fat != 0 else 0
+
+                total_geral_lucro = df['Lucro / Prej.'].sum()
+                total_geral_fat = df['Fat Liquido'].sum()
+                total_geral = (total_geral_lucro / total_geral_fat) * 100 if total_geral_fat != 0 else 0
+
+                # Usamos o lucro absoluto para calcular as proporções do gráfico
+                lucro_total = abs(total_top20_lucro) + abs(total_resto_lucro)
+                if lucro_total > 0:
+                    perc_top20 = 100 * abs(total_top20_lucro) / lucro_total
+                    perc_resto = 100 * abs(total_resto_lucro) / lucro_total
+                else:
+                    perc_top20 = 0
+                    perc_resto = 0
+
+                return {
+                    'labels': ['Top 20 produtos', f'Outros {len(resto)} produtos'],
+                    'values': [abs(total_top20_lucro), abs(total_resto_lucro)],  # Usamos valor absoluto do lucro para tamanho
+                    'display_values': [total_top20, total_resto],  # Valores de margem (%) para mostrar
+                    'title': f'Top 20 produtos vs Outros {len(resto)} produtos - {metric_name}',
+                    'total': total_geral,
+                    'resto_count': len(resto),
+                    'is_margin': True  # Flag para indicar que é margem
+                }
+            else:
+                total_top20 = top20[metric_column].sum()
+                total_resto = resto[metric_column].sum()
+                total_geral = total_top20 + total_resto
+
+                return {
+                    'labels': ['Top 20 produtos', f'Outros {len(resto)} produtos'],
+                    'values': [total_top20, total_resto],
+                    'title': f'Top 20 produtos vs Outros {len(resto)} produtos - {metric_name}',
+                    'total': total_geral,
+                    'resto_count': len(resto),
+                    'is_margin': False
+                }
+        
+        pie_data = {
+            'Tonelagem': prepare_pie_data('Tonelagem'),
+            'Faturamento': prepare_pie_data('Faturamento'),
+            'Margem': prepare_pie_data('Margem')
+        }
+        
+        # Criar PDF
         with PdfPages(output_path) as pdf:
             # Página de título
-            fig_title = plt.figure(figsize=(11, 16), dpi=100)
+            fig_title = plt.figure(figsize=(11, 16))
             plt.text(0.5, 0.5, "RANKING DE VENDAS - GERAL", 
                     fontsize=24, ha='center', va='center', fontweight='bold')
             plt.text(0.5, 0.45, f"{nome_mes} {primeiro_ano}", 
                     fontsize=18, ha='center', va='center', fontweight='normal')
             plt.axis('off')
-            pdf.savefig(fig_title, bbox_inches='tight', dpi=100)
+            pdf.savefig(fig_title, bbox_inches='tight')
             plt.close(fig_title)
-            clean_matplotlib_memory()
+            
+            # Página com tabela e gráficos
+            fig_content = plt.figure(figsize=(11, 16))
+            gs = fig_content.add_gridspec(4, 1, height_ratios=[1, 1, 1, 1], hspace=0.5)
+            
+            # Tabela na primeira parte
+            ax_table = fig_content.add_subplot(gs[0])
+            ax_table.axis('off')
+            
+            table = ax_table.table(
+                cellText=table_data,
+                loc='center',
+                cellLoc='center',
+                colWidths=[0.5, 0.5]
+            )
+            
+            table.auto_set_font_size(False)
+            table.set_fontsize(12)
+            table.scale(1, 2)
+            ax_table.set_title("Estatísticas Gerais de Vendas", fontsize=14, pad=20)
+            
+            def format_value(value, metric_name):
+                if metric_name == 'Faturamento':
+                    return format_currency(value)
+                elif metric_name == 'Margem':
+                    return f"{value:.2f}%"
+                else:
+                    return f"{value:,.3f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            
+            colors = ['#1f77b4', '#ff7f0e']
+            
+            for i, (metric_name, data) in enumerate(pie_data.items()):
+                ax_pie = fig_content.add_subplot(gs[i+1])
+                
+                # Ajustar posição para dar mais espaço
+                ax_pie.set_position([0.1, ax_pie.get_position().y0, 0.8, ax_pie.get_position().height * 0.8])
+                
+                # Título principal
+                ax_pie.set_title(data['title'], fontsize=12, pad=25, y=1.08)
+                
+                # Total (verde)
+                ax_pie.text(0.5, 1.02, f"Total: {format_value(data['total'], metric_name)}", 
+                           fontsize=11, ha='center', va='bottom', 
+                           color=TOTAL_COLOR, transform=ax_pie.transAxes,
+                           bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=3))
+                
+                # Gráfico de pizza (sem autopct)
+                wedges, texts = ax_pie.pie(
+                    data['values'],
+                    startangle=90,
+                    colors=colors,
+                    wedgeprops={'linewidth': 0.5, 'edgecolor': 'white'},
+                    radius=0.8
+                )
+
+                # Adicionar os valores fora do gráfico
+                bbox_props = dict(boxstyle="round,pad=0.3", fc="white", ec="gray", lw=0.5, alpha=0.8)
+                kw = dict(arrowprops=dict(arrowstyle="-"), bbox=bbox_props, zorder=0, va="center")
+
+                for j, (wedge, value) in enumerate(zip(wedges, data['values'])):
+                    ang = (wedge.theta2 - wedge.theta1)/2. + wedge.theta1
+                    y = np.sin(np.deg2rad(ang))
+                    x = np.cos(np.deg2rad(ang))
+
+                    # Calcular porcentagem baseada nos valores do gráfico
+                    total_pie = sum(data['values'])
+                    percentage = 100 * value / total_pie if total_pie > 0 else 0
+
+                    # Formatar o valor para exibição
+                    if data.get('is_margin', False):
+                        # Para margem, mostramos o valor percentual entre parênteses
+                        display_value = data['display_values'][j]
+                        formatted_value = f"{display_value:.2f}%"
+                    else:
+                        formatted_value = format_value(value, metric_name)
+
+                    # Texto com porcentagem e valor
+                    text = f"{percentage:.1f}%\n({formatted_value})"
+                    
+                    # Posicionar fora do gráfico
+                    horizontalalignment = {-1: "right", 1: "left"}[int(np.sign(x))]
+                    connectionstyle = f"angle,angleA=0,angleB={ang}"
+                    kw["arrowprops"].update({"connectionstyle": connectionstyle})
+                    
+                    ax_pie.annotate(text, xy=(x, y), xytext=(1.3*np.sign(x), 1.3*y),
+                                   horizontalalignment=horizontalalignment,
+                                   fontsize=9, **kw)
+                
+                # Legenda - usando os labels diretamente do data
+                ax_pie.legend(wedges, data['labels'],
+                             loc='lower center',
+                             bbox_to_anchor=(0.5, -0.3),
+                             ncol=2,
+                             fontsize=10,
+                             frameon=False)
+            
+            plt.tight_layout()
+            pdf.savefig(fig_content, bbox_inches='tight')
+            plt.close(fig_content)
             
         print(f"Finalizado - {output_filename}")
         
     except Exception as e:
         print(f"ERRO ao gerar relatório geral: {str(e)}")
-        if 'output_path' in locals() and os.path.exists(output_path):
+        if os.path.exists(output_path):
             try:
                 os.remove(output_path)
             except:
@@ -850,7 +1028,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
                 pass
 
 # Configuração principal
-file_path = r"C:\Users\win11\Downloads\260228_MRG - wapp.xlsx"
+file_path = r"C:\Users\win11\OneDrive\Documentos\Margens de fechamento\2026\260228_MRG - wapp - v2.xlsx"
 sheet_name = "Base (3,5%)"
 output_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
 items_per_page = 5
