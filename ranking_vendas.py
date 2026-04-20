@@ -147,7 +147,7 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
                                         1884, 1535, 8007, 2050],
             'COXÃO DURO': [1920, 8003, 1803, 1949, 1795],
             'COXÃO MOLE': [1831, 8002, 1948, 1976, 1375],
-            'COXINHA DA ASA': [1604, 1546, 8005, 1722, 2038],
+            'COXINHA DA ASA': [1604, 1546, 8005, 1722, 2038, 1616],
             'CUPIM A': [1772],
             'CUPIM B': [1804, 1456, 1926, 1984],
             'FIGADO': [1808, 1455, 1818, 1910, 1823, 1537, 1505, 1408, 1373, 1458, 1508,
@@ -835,7 +835,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
                                         1884, 1535, 8007, 2050],
             'COXÃO DURO': [1920, 8003, 1803, 1949, 1795],
             'COXÃO MOLE': [1831, 8002, 1948, 1976, 1375],
-            'COXINHA DA ASA': [1604, 1546, 8005, 1722, 2038],
+            'COXINHA DA ASA': [1604, 1546, 8005, 1722, 2038, 1616],
             'CUPIM A': [1772],
             'CUPIM B': [1804, 1456, 1926, 1984],
             'FIGADO': [1808, 1455, 1818, 1910, 1823, 1537, 1505, 1408, 1373, 1458, 1508,
@@ -1028,7 +1028,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
                 pass
 
 # Configuração principal
-file_path = r"C:\Users\win11\Downloads\260307_MRG - wapp.xlsx"
+file_path = r"C:\Users\win11\Downloads\260420_MRG - wapp.xlsx"
 sheet_name = "Base (3,5%)"
 output_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
 items_per_page = 5
