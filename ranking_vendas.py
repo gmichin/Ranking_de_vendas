@@ -175,11 +175,11 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
             'PATINHO': [1805, 1874, 8000, 1938, 9166, 1966],
             'PALETA': [1953, 1964, 1923, 1975],
             'PEITO BOV': [1815, 1875, 1789, 1952],
-            'PERNIL SUINO C/OSSO C/PELE': [1942, 1635, 1724, 1570, 1756, 1303],
+            'PERNIL SUINO C/OSSO C/PELE': [1942, 1635, 1724, 1570, 1756, 1303, 3093],
             'PICANHA B': [1946, 1950],
             'PIZZA': [1989, 1990],
             'RABO BOV': [1828, 1839, 1876, 1861, 1116, 1705, 1531, 1906, 1826, 1911, 1882,
-                        1571, 1335, 1963, 1909, 1473, 1481, 2079, 859, 1747, 3013],
+                        1571, 1335, 1963, 1909, 1473, 1481, 2079, 859, 1747, 3013, 2424, 3066],
             'SALAME UAI': [1495, 1500, 1496, 1497, 1498, 1499],
             'STEAK FGO': [1718, 1996],
             'TAPIOCA DA TERRINHA': [1929, 1930],
@@ -863,11 +863,11 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
             'PATINHO': [1805, 1874, 8000, 1938, 9166, 1966],
             'PALETA': [1953, 1964, 1923, 1975],
             'PEITO BOV': [1815, 1875, 1789, 1952],
-            'PERNIL SUINO C/OSSO C/PELE': [1942, 1635, 1724, 1570, 1756, 1303],
+            'PERNIL SUINO C/OSSO C/PELE': [1942, 1635, 1724, 1570, 1756, 1303, 3093],
             'PICANHA B': [1946, 1950],
             'PIZZA': [1989, 1990],
             'RABO BOV': [1828, 1839, 1876, 1861, 1116, 1705, 1531, 1906, 1826, 1911, 1882,
-                        1571, 1335, 1963, 1909, 1473, 1481, 2079, 8599, 1747, 3013],
+                        1571, 1335, 1963, 1909, 1473, 1481, 2079, 8599, 1747, 3013, 2424, 3066],
             'SALAME UAI': [1495, 1500, 1496, 1497, 1498, 1499],
             'STEAK FGO': [1718, 1996],
             'TAPIOCA DA TERRINHA': [1929, 1930],
@@ -1028,7 +1028,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
                 pass
 
 # Configuração principal
-file_path = r"C:\Users\win11\Downloads\260425_MRG - wapp.xlsx"
+file_path = r"C:\Users\win11\Downloads\260518_MRG - wapp.xlsx"
 sheet_name = "Base (3,5%)"
 output_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
 items_per_page = 5
