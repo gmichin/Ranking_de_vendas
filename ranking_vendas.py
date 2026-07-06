@@ -151,7 +151,7 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
             'LINGUIÇA CALABRESA SADIA': [1339, 807, 1848, 1847],
             'LINGUIÇA CALABRESA PAMPLONA': [9165, 910],
             'LINGUIÇA CALABRESA PERDIGAO': [1423, 880],
-            'MEIO DA ASA': [2311, 1937, 2014, 2039, 2052],
+            'MEIO DA ASA': [2311, 1937, 2014, 2039, 2052, 4035],
             'MINI CHICKEN': [1024, 1994],
             'MINI LASANHA': [1992, 1985],
             'MOCOTÓ': [1539, 1460, 1342, 1540, 1675, 1850, 1827, 1821, 1853, 1407, 1723,
@@ -665,7 +665,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
             'LINGUIÇA CALABRESA SADIA': [1339, 807, 1848, 1847],
             'LINGUIÇA CALABRESA PAMPLONA': [9165, 910],
             'LINGUIÇA CALABRESA PERDIGAO': [1423, 880],
-            'MEIO DA ASA': [2311, 1937, 2014, 2039, 2052],
+            'MEIO DA ASA': [2311, 1937, 2014, 2039, 2052, 4035],
             'MINI CHICKEN': [1024, 1994],
             'MINI LASANHA': [1992, 1985],
             'MOCOTÓ': [1539, 1460, 1342, 1540, 1675, 1850, 1827, 1821, 1853, 1407, 1723,
@@ -799,7 +799,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
         traceback.print_exc()
 
 # Configuração principal
-file_path = r"C:\Users\win11\Downloads\260602_MRG - wapp.xlsx"
+file_path = r"C:\Users\win11\Downloads\260704_MRG.xlsx"
 sheet_name = "FEC_PQ"
 output_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
 items_per_page = 5
