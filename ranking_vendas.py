@@ -151,7 +151,7 @@ def generate_report(file_path, sheet_name, output_dir, metric_column, metric_nam
             'LINGUIÇA CALABRESA SADIA': [1339, 807, 1848, 1847],
             'LINGUIÇA CALABRESA PAMPLONA': [9165, 910],
             'LINGUIÇA CALABRESA PERDIGAO': [1423, 880],
-            'MEIO DA ASA': [2311, 1937, 2014, 2039, 2052],
+            'MEIO DA ASA': [2311, 1937, 2014, 2039, 2052, 4035],
             'MINI CHICKEN': [1024, 1994],
             'MINI LASANHA': [1992, 1985],
             'MOCOTÓ': [1539, 1460, 1342, 1540, 1675, 1850, 1827, 1821, 1853, 1407, 1723,
@@ -517,11 +517,6 @@ def generate_general_report(file_path, sheet_name, output_dir):
                 total_geral_fat = df['Fat Liquido'].sum()
                 total_geral = (total_geral_lucro / total_geral_fat) * 100 if total_geral_fat != 0 else 0
 
-                lucro_total = abs(total_top20_lucro) + abs(total_resto_lucro)
-                if lucro_total > 0:
-                    perc_top20 = 100 * abs(total_top20_lucro) / lucro_total
-                    perc_resto = 100 * abs(total_resto_lucro) / lucro_total
-
                 return {
                     'labels': ['Top 20 produtos', f'Outros {len(resto)} produtos'],
                     'values': [abs(total_top20_lucro), abs(total_resto_lucro)],
@@ -579,6 +574,7 @@ def generate_general_report(file_path, sheet_name, output_dir):
                 ax_pie.set_position([0.1, ax_pie.get_position().y0, 0.8, ax_pie.get_position().height * 0.8])
                 ax_pie.set_title(data['title'], fontsize=12, pad=25, y=1.08)
                 
+                # Formatar o total
                 if metric_name == 'Faturamento':
                     total_text = format_currency(data['total'])
                 elif metric_name == 'Margem':
@@ -586,14 +582,51 @@ def generate_general_report(file_path, sheet_name, output_dir):
                 else:
                     total_text = f"{data['total']:,.3f}".replace(",", "X").replace(".", ",").replace("X", ".")
                 
+                # Formatar os valores de exibição para o gráfico
+                if metric_name == 'Faturamento':
+                    label_texts = [
+                        f"{data['labels'][0]}\n{format_currency(data['values'][0])}",
+                        f"{data['labels'][1]}\n{format_currency(data['values'][1])}"
+                    ]
+                elif metric_name == 'Margem':
+                    label_texts = [
+                        f"{data['labels'][0]}\n{data['display_values'][0]:.2f}%",
+                        f"{data['labels'][1]}\n{data['display_values'][1]:.2f}%"
+                    ]
+                else:
+                    label_texts = [
+                        f"{data['labels'][0]}\n{data['values'][0]:,.3f}".replace(",", "X").replace(".", ",").replace("X", "."),
+                        f"{data['labels'][1]}\n{data['values'][1]:,.3f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                    ]
+                
+                # Adicionar texto do total
                 ax_pie.text(0.5, 1.02, f"Total: {total_text}", fontsize=11, ha='center', va='bottom', 
-                           color=TOTAL_COLOR, transform=ax_pie.transAxes)
+                           color=TOTAL_COLOR, transform=ax_pie.transAxes, fontweight='bold')
                 
-                wedges, texts = ax_pie.pie(data['values'], startangle=90, colors=colors,
-                                          wedgeprops={'linewidth': 0.5, 'edgecolor': 'white'}, radius=0.8)
+                # Criar o gráfico de pizza
+                wedges, texts, autotexts = ax_pie.pie(
+                    data['values'], 
+                    startangle=90, 
+                    colors=colors,
+                    wedgeprops={'linewidth': 0.5, 'edgecolor': 'white'}, 
+                    radius=0.8,
+                    autopct=lambda p: f'{p:.1f}%',
+                    textprops={'fontsize': 9, 'fontweight': 'bold'}
+                )
                 
-                ax_pie.legend(wedges, data['labels'], loc='lower center', bbox_to_anchor=(0.5, -0.3),
-                             ncol=2, fontsize=10, frameon=False)
+                # Adicionar legenda com os valores
+                ax_pie.legend(
+                    wedges, 
+                    label_texts, 
+                    loc='lower center', 
+                    bbox_to_anchor=(0.5, -0.3),
+                    ncol=2, 
+                    fontsize=10, 
+                    frameon=True,
+                    framealpha=0.9,
+                    fancybox=True,
+                    shadow=True
+                )
             
             plt.tight_layout()
             pdf.savefig(fig_content, bbox_inches='tight')
@@ -665,7 +698,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
             'LINGUIÇA CALABRESA SADIA': [1339, 807, 1848, 1847],
             'LINGUIÇA CALABRESA PAMPLONA': [9165, 910],
             'LINGUIÇA CALABRESA PERDIGAO': [1423, 880],
-            'MEIO DA ASA': [2311, 1937, 2014, 2039, 2052],
+            'MEIO DA ASA': [2311, 1937, 2014, 2039, 2052, 4035],
             'MINI CHICKEN': [1024, 1994],
             'MINI LASANHA': [1992, 1985],
             'MOCOTÓ': [1539, 1460, 1342, 1540, 1675, 1850, 1827, 1821, 1853, 1407, 1723,
