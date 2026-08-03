@@ -832,7 +832,7 @@ def generate_consolidated_excel(file_path, sheet_name, output_dir):
         traceback.print_exc()
 
 # Configuração principal
-file_path = r"C:\Users\DELL\Downloads\260707_MRG.xlsx"
+file_path = r"C:\Users\DELL\Downloads\260725_MRG.xlsx"
 sheet_name = "FEC_PQ"
 output_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
 items_per_page = 5
